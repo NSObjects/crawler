@@ -1,9 +1,9 @@
 package controller
 
 import (
-	"crawlerController/src/ini"
-	"crawlerController/src/model"
-	"crawlerController/src/util"
+	"crawler/src/ini"
+	"crawler/src/model"
+	"crawler/src/util"
 	"encoding/json"
 	"math/rand"
 	"net/http"

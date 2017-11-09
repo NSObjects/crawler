@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"crawlerController/src/global"
-	"crawlerController/src/ini"
-	"crawlerController/src/model"
+	"crawler/src/global"
+	"crawler/src/ini"
+	"crawler/src/model"
 
 	"github.com/jinzhu/now"
 	"github.com/labstack/echo"

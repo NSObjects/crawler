@@ -1,7 +1,7 @@
 package router
 
 import (
-	"crawlerController/src/controller"
+	"crawler/src/controller"
 
 	"github.com/labstack/echo"
 )

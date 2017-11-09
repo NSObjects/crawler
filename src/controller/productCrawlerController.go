@@ -1,9 +1,9 @@
 package controller
 
 import (
-	"crawlerController/src/global"
-	"crawlerController/src/ini"
-	"crawlerController/src/model"
+	"crawler/src/global"
+	"crawler/src/ini"
+	"crawler/src/model"
 	"encoding/json"
 	"math/rand"
 	"net/http"
@@ -13,7 +13,7 @@ import (
 
 	"fmt"
 
-	"crawlerController/src/util"
+	"crawler/src/util"
 	"io/ioutil"
 	"strings"
 

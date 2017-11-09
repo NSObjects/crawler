@@ -1,12 +1,12 @@
 package main
 
 import (
-	"crawlerController/src/router"
-	"crawlerController/src/util"
+	"crawler/src/router"
+	"crawler/src/util"
 
-	"crawlerController/src/global"
+	"crawler/src/global"
 
-	"crawlerController/src/controller"
+	"crawler/src/controller"
 
 	"github.com/labstack/echo"
 )

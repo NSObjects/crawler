@@ -1,8 +1,8 @@
 package global
 
 import (
-	"crawlerController/src/ini"
-	"crawlerController/src/model"
+	"crawler/src/ini"
+	"crawler/src/model"
 	"fmt"
 	"strconv"
 
