@@ -12,6 +12,7 @@ import (
 	"crawler/src/global"
 	"crawler/src/ini"
 	"crawler/src/model"
+	"crawler/src/util"
 
 	"github.com/jinzhu/now"
 	"github.com/labstack/echo"
@@ -67,7 +68,7 @@ func (this *SnapshotController) Post(ctx echo.Context) error {
 
 			_, err := ini.AppWish.Insert(&ps)
 			if err != nil {
-				fmt.Println(err)
+				util.Errorln(0, err)
 			}
 		}
 	}
@@ -100,12 +101,12 @@ func (this *SnapshotController) Get(ctx echo.Context) error {
 		Result(); err == nil {
 		datas = ids
 	} else {
-		fmt.Println(err)
+		util.Errorln(0, err)
 	}
 
 	if len(datas) > 0 {
 		JSONData.Data = datas
-		JSONData.Users = getUsers()
+		JSONData.Users = model.GetUsers()
 	}
 
 	return ctx.JSON(http.StatusOK, JSONData)

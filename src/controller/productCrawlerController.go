@@ -5,13 +5,11 @@ import (
 	"crawler/src/ini"
 	"crawler/src/model"
 	"encoding/json"
-	"math/rand"
+
 	"net/http"
 	"time"
 
 	"sync"
-
-	"fmt"
 
 	"crawler/src/util"
 	"io/ioutil"
@@ -47,12 +45,12 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 		weekSalesPageChan <- weekSalesPage
 		_, err := ini.AppWish.Exec("update load_page set week_sales_page=?", weekSalesPage)
 		if err != nil {
-			fmt.Println(err)
+			util.Errorln(0, err)
 		}
 		page := <-pageChan
 		_, err = ini.AppWish.Exec("update load_page set all_id_page=?", page)
 		if err != nil {
-			fmt.Println(err)
+			util.Errorln(0, err)
 		}
 		pageChan <- page
 		requestCount = 0
@@ -61,13 +59,10 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 	var datas []string
 	mutex.Lock()
 	if requestCount >= 5 && global.WeekSalesCacheLenght > 0 {
-		fmt.Println(global.WeekSalesCacheLenght, "一周销量")
 		datas = wishIdByWeekSalesGtZero()
 	} else if requestCount >= 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
-		fmt.Println(global.SalesGreaterThanZeroCacheLenght, "销量大于0")
 		datas = wishIdBySalesGtZero()
 	} else if global.AllWishIdCacheLenght > 0 {
-		fmt.Println(global.AllWishIdCacheLenght, "销量等于0")
 		datas = allWishId()
 	} else {
 		datas = nocacheWishId()
@@ -76,7 +71,7 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 	requestCount++
 	if len(datas) > 0 {
 		JSONData.Data = datas
-		JSONData.Users = getUsers()
+		JSONData.Users = model.GetUsers()
 	}
 
 	return ctx.JSON(http.StatusOK, JSONData)
@@ -87,13 +82,10 @@ func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 	b, _ := ioutil.ReadAll(ctx.Request().Body)
 
 	if len(b) > 0 {
-
+		util.Statistics(0, ctx.Request().Host)
 		SaveProductToDBFrom(b)
 	}
-	//
-	//fmt.Println("外面")
-	//utility.Statistics(0, this.Ctx.Input.IP())
-	//this.Ctx.WriteString("Ok")
+
 	return ctx.String(http.StatusOK, "ok")
 }
 
@@ -106,7 +98,7 @@ func Setup() {
 
 	weekSalesPageChan = make(chan int, 50)
 	weekSalesPageChan <- loadPage.WeekSalesPage
-	getUsers()
+	model.GetUsers()
 	pageChan = make(chan int, 50)
 	pageChan <- loadPage.AllIdPage
 }
@@ -116,7 +108,7 @@ func SaveProductToDBFrom(jsonStr []byte) {
 
 	err := json.Unmarshal(jsonStr, &w)
 	if err != nil {
-		fmt.Println(err)
+		util.Errorln(0, err)
 	}
 
 	for _, j := range w.Data {
@@ -134,10 +126,10 @@ func SaveProductToDBFrom(jsonStr []byte) {
 				p.Id = util.FNV(j.WishId)
 				configProduct(j, &p)
 				if _, err := ini.AppWish.Insert(&p); err != nil {
-					fmt.Println(err)
+					util.Errorln(0, err)
 				}
 			} else {
-				fmt.Println(err)
+				util.Errorln(0, err)
 			}
 		}
 
@@ -208,9 +200,7 @@ func saveWishDataIncremental(jsonData WishProduct, product model.Product) {
 		}
 
 		if _, err := ini.AppWish.Insert(&v); err != nil {
-			if !strings.Contains(err.Error(), "Duplicate entry") {
-				fmt.Println(err)
-			}
+			util.Errorln(0, err)
 		}
 	}
 
@@ -241,9 +231,7 @@ func saveWishDataIncremental(jsonData WishProduct, product model.Product) {
 			_, err := ini.AppWish.Insert(&wishdataIncremental)
 
 			if err != nil {
-				if strings.Contains(err.Error(), "Error 1062: Duplicate entry") == false {
-					fmt.Println(err)
-				}
+				util.Errorln(0, err)
 			}
 		}
 	}
@@ -267,7 +255,7 @@ func saveWishDataIncremental(jsonData WishProduct, product model.Product) {
 			"updated",
 			"merchant",
 			"merchant_id").Update(&product); err != nil {
-			fmt.Println(err)
+			util.Errorln(0, err)
 		}
 	}
 
@@ -303,36 +291,6 @@ func configProduct(jsonData WishProduct, product *model.Product) {
 
 }
 
-func getUsers() []model.User {
-
-	if len(u) <= 0 {
-
-		contrys := []string{"Britain", "Canada", "Australia", "France", "Germany", "America"}
-		for _, contry := range contrys {
-			var user []model.User
-			err := ini.AppWish.Where("has_address=1").And("country=?", contry).Find(&user)
-			if err != nil {
-				fmt.Println(err)
-			}
-			u = append(u, user)
-
-		}
-	}
-	var users []model.User
-
-	for _, userList := range u {
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		if len(userList) <= 0 {
-			continue
-		}
-		user := userList[r.Intn(len(userList))]
-		if len(user.SweeperSession) > 0 && len(user.Baid) > 0 {
-			users = append(users, user)
-		}
-	}
-	return users
-}
-
 func nocacheWishId() (datas []string) {
 
 	page := <-pageChan
@@ -340,17 +298,17 @@ func nocacheWishId() (datas []string) {
 	var err error
 	result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, size*page)
 	if err != nil {
-		fmt.Println(err)
+		util.Errorln(0, err)
 	}
 	if len(result) <= 0 {
 		pageChan <- 0
 		if _, err = ini.RedisClient.HSet("load_page", "page", 1).Result(); err != nil {
-			fmt.Println(err)
+			util.Errorln(0, err)
 		}
 		result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, 0)
 
 		if err != nil {
-			fmt.Println(err)
+			util.Errorln(0, err)
 		}
 	} else {
 		pageChan <- page + 1
@@ -397,7 +355,7 @@ func wishIdByWeekSalesGtZero() (datas []string) {
 		Result(); err == nil {
 		datas = ids
 	} else {
-		fmt.Println(err)
+		util.Errorln(0, err)
 	}
 
 	if len(datas) <= 0 {
@@ -406,7 +364,7 @@ func wishIdByWeekSalesGtZero() (datas []string) {
 			Result(); err == nil {
 			datas = ids
 		} else {
-			fmt.Println(err)
+			util.Errorln(0, err)
 		}
 
 		weekSalesPageChan <- 1

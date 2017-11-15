@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/jinzhu/now"
+
 )
 
 var (
@@ -42,7 +43,6 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 						fmt.Println(err)
 					}
 				}
-
 			} else {
 				fmt.Println(err)
 			}

@@ -12,7 +12,6 @@ import (
 )
 
 func main() {
-
 	ServeBackGround()
 	controller.Setup()
 	e := echo.New()
@@ -22,7 +21,6 @@ func main() {
 }
 
 func ServeBackGround() {
-
 	go global.CacheWishId()
 	go global.CacheSalesGreaterThanWishId()
 	util.LoopTimer(9, global.CacheWeekSalesGreaterThanZeroWishId)
