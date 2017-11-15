@@ -90,7 +90,10 @@ func (this *Merchant) MerchantInfoHandler(ctx echo.Context) error {
 			wishID := WishId{WishId: id}
 			wishID.Created = time.Now()
 			if _, err := ini.AppWish.Insert(&wishID); err != nil {
-				util.Errorln(0, err)
+				if strings.Contains(err.Error(), "Error 1062: Duplicate entry") == false {
+					util.Errorln(0, err)
+				}
+
 			}
 		}
 	}
