@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-type Viewings struct {
+type TViewings struct {
 	Id        int       `json:"id" xorm:"not null pk autoincr INT(11)"`
 	Created   time.Time `json:"created" xorm:"not null index unique(created) DATETIME"`
 	Count     int       `json:"count" xorm:"not null default 0 index INT(11)"`

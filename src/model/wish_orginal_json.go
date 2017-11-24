@@ -70,10 +70,10 @@ type Variations struct {
 	MerchantName     string  `json:"merchant_name"`
 	Merchant         string  `json:"merchant"`
 	ShipsFrom        string  `json:"ships_from"`
-	Price            float32 `json:"price"`
+	Price            float64 `json:"price"`
 	IsWishExpress    bool    `json:"is_wish_express"`
-	RetailPrice      float32 `json:"retail_price"`
-	Shipping         float32 `json:"shipping"`
+	RetailPrice      float64 `json:"retail_price"`
+	Shipping         float64 `json:"shipping"`
 	VariableShipping float32 `json:"variable_shipping"`
 	OriginalPrice    int     `json:"original_price"`
 	SizeOrdering     float32 `json:"size_ordering"`

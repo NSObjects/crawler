@@ -9,5 +9,5 @@ import (
 func RegisterRoutes(g *echo.Group) {
 	new(controller.ProductCrawlerController).RegisterRoute(g)
 	new(controller.MerchantController).RegisterRoute(g)
-	new(controller.SnapshotController).RegisterRoute(g)
+	//new(controller.SnapshotController).RegisterRoute(g)
 }

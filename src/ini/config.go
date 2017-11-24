@@ -1,12 +1,14 @@
 package ini
 
-import "github.com/go-ini/ini"
+import (
+	"github.com/go-ini/ini"
+)
 
 var IniFile *ini.File
 
 const IniPaht = "conf/config.ini"
 
-func init() {
+func Setup() {
 	var err error
 
 	IniFile, err = ini.Load(IniPaht)

@@ -4,25 +4,28 @@ import (
 	"crawler/src/global"
 	"crawler/src/ini"
 	"crawler/src/model"
-	"encoding/json"
-
-	"net/http"
-	"time"
-
-	"sync"
-
 	"crawler/src/util"
-	"io/ioutil"
-	"strings"
+	"log"
 
-	"github.com/go-xorm/xorm"
+	"github.com/jinzhu/now"
 	"github.com/labstack/echo"
+
+	"bytes"
+	"compress/zlib"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
 
 const size int = 250
 
 var (
-	u                 [][]model.User
+	u                 [][]model.TUser
 	requestCount      int
 	mutex             sync.Mutex
 	weekSalesPageChan chan int
@@ -45,12 +48,12 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 		weekSalesPageChan <- weekSalesPage
 		_, err := ini.AppWish.Exec("update load_page set week_sales_page=?", weekSalesPage)
 		if err != nil {
-			util.Errorln(0, err)
+			log.Print(err)
 		}
 		page := <-pageChan
 		_, err = ini.AppWish.Exec("update load_page set all_id_page=?", page)
 		if err != nil {
-			util.Errorln(0, err)
+			log.Print(err)
 		}
 		pageChan <- page
 		requestCount = 0
@@ -79,10 +82,19 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 
 func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 
-	b, _ := ioutil.ReadAll(ctx.Request().Body)
+	b, err := ioutil.ReadAll(ctx.Request().Body)
+	if err != nil {
+		log.Print(err)
+	}
 
 	if len(b) > 0 {
-		util.Statistics(0, ctx.Request().Host)
+		ip := strings.Split(ctx.Request().RemoteAddr, ":")
+		if len(ip) > 0 {
+			if ip[0] != "[" {
+				fmt.Println(ip[0])
+			}
+		}
+
 		SaveProductToDBFrom(b)
 	}
 
@@ -90,7 +102,7 @@ func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 }
 
 func Setup() {
-	loadPage := &model.LoadPage{Id: 1}
+	loadPage := &model.TLoadPage{Id: 1}
 	_, err := ini.AppWish.Get(loadPage)
 	if err != nil {
 		panic(err)
@@ -98,197 +110,186 @@ func Setup() {
 
 	weekSalesPageChan = make(chan int, 50)
 	weekSalesPageChan <- loadPage.WeekSalesPage
-	model.GetUsers()
+
 	pageChan = make(chan int, 50)
 	pageChan <- loadPage.AllIdPage
 }
 
 func SaveProductToDBFrom(jsonStr []byte) {
 	var w WishProductJSON
-
 	err := json.Unmarshal(jsonStr, &w)
 	if err != nil {
-		util.Errorln(0, err)
+		log.Print(err)
+		return
 	}
 
 	for _, j := range w.Data {
 
-		if j.Code != 0 || len(j.WishId) <= 0 {
+		if j.Code != 0 || len(j.Data.Contest.ID) <= 0 {
 			continue
 		}
 
-		var product model.Product
-		if _, err := ini.AppWish.Id(util.FNV(j.WishId)).Get(&product); err == nil {
-			saveWishDataIncremental(j, product)
+		id, _ := ini.RedisClient.HGet(global.SNAPSHOT_IDS, j.Data.Contest.ID).Result()
+
+		if len(id) <= 0 {
+
+			ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
+			value, err := json.Marshal(&j)
+			if err != nil {
+				log.Print(err)
+				continue
+			}
+
+			ps := model.TProductSnapshot{
+				Data:    string(value),
+				Created: now.BeginningOfDay(),
+				WishId:  j.Data.Contest.ID,
+			}
+			_, err = ini.AppWish.Insert(&ps)
+			if err != nil {
+				log.Print(err)
+			}
+
+			var product model.TProduct
+			product.Created = time.Now()
+			product.Id = util.FNV(j.Data.Contest.ID)
+			configProduct(j, &product)
+			_, err = ini.AppWish.Insert(&product)
+			if err != nil {
+				log.Print(err)
+			}
+
 		} else {
-			if err == xorm.ErrNotExist {
-				var p model.Product
-				p.Id = util.FNV(j.WishId)
-				configProduct(j, &p)
-				if _, err := ini.AppWish.Insert(&p); err != nil {
-					util.Errorln(0, err)
-				}
+			var product model.TProduct
+
+			if _, err := ini.AppWish.Id(util.FNV(j.Data.Contest.ID)).Get(&product); err == nil {
+				saveWishDataIncremental(j, product)
 			} else {
-				util.Errorln(0, err)
+				log.Print(err)
 			}
 		}
-
 	}
 }
 
-type WishIdJson struct {
-	Message string       `json:"message"`
-	Code    int          `json:"code"`
-	Data    []string     `json:"data"`
-	Users   []model.User `json:"users"`
-	Page    int64        `json:"page"`
-}
-
-type WishProductJSON struct {
-	Data []WishProduct `json:"data"`
-	Ip   string
-}
-
-type WishProduct struct {
-	HasHwc                 int       `json:"has_hwc"`
-	GenerationTime         time.Time `json:"generation_time"` //店铺开张时间
-	RatingCount            int       `json:"rating_count"`
-	Keyword                string    `json:"keyword"`
-	Merchant               string    `json:"merchant"`
-	MerchantName           string    `json:"merchant_name"`
-	ContestSelectedPicture string    `json:"contest_selected_picture"`
-	ExternalUrl            string    `json:"external_url"`
-	Name                   string    `json:"name"`
-	Countrys               string    `json:"countrys"`
-	ExtraPhotoUrls         string    `json:"extra_photo_urls"`
-	WishId                 string    `json:"wish_id"`
-	Color                  string    `json:"color"`
-	Size                   string    `json:"size"`
-	Price                  float64   `json:"price"`
-	RetailPrice            float64   `json:"retail_price"`
-	MerchantTags           string    `json:"merchant_tags"`
-	Tags                   string    `json:"tags"`
-	Shipping               float64   `json:"shipping"`
-	NumBought              int       `json:"num_bought"`
-	MaxShippingTime        int       `json:"max_shipping_time"`
-	MinShippingTime        int       `json:"min_shipping_time"`
-	NumEntered             int       `json:"num_entered"`
-	Code                   int       `json:"code"`
-	Description            string    `json:"description"`
-	Gender                 int       `json:"gender"`
-	IsVerified             bool      `json:"is_verified"`
-	CurrentlyViewing       int       `json:"currently_viewing"`
-	Time                   int64     `json:"time"`
-	TrueTagIds             []string  `json:"true_tag_ids"`
-}
-
-func saveWishDataIncremental(jsonData WishProduct, product model.Product) {
-	if len(jsonData.Name) <= 0 || len(jsonData.WishId) <= 0 || jsonData.Code != 0 {
+func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProduct) {
+	if len(jsonData.Data.Contest.Name) <= 0 || len(jsonData.Data.Contest.ID) <= 0 || jsonData.Code != 0 {
 		return
 	}
 
-	if jsonData.CurrentlyViewing > 0 {
-		v := model.Viewings{
-			Count:     jsonData.CurrentlyViewing,
-			ProductId: util.FNV(jsonData.WishId),
+	if len(jsonData.Data.Contest.CurrentlyViewing.MessageList) > 0 {
+		currentlyViewing := 0
+		for _, v := range jsonData.Data.Contest.CurrentlyViewing.MessageList {
+			for _, d := range strings.Split(v, " ") {
+				if s, err := strconv.Atoi(d); err == nil {
+					currentlyViewing += s
+				}
+			}
+		}
+		v := model.TViewings{
+			Count:     currentlyViewing,
+			ProductId: util.FNV(jsonData.Data.Contest.ID),
 		}
 
-		if jsonData.Time > 0 {
-			v.Created = time.Unix(jsonData.Time, 0)
-		} else {
-			v.Created = time.Now()
-		}
+		v.Created = time.Now()
 
 		if _, err := ini.AppWish.Insert(&v); err != nil {
-			util.Errorln(0, err)
+			log.Print(err)
 		}
 	}
 
-	wishdataIncremental := model.Incremental{}
+	wishdataIncremental := model.TIncremental{}
 	if time.Now().YearDay()-product.Updated.YearDay() <= 1 {
-		if jsonData.NumBought > product.NumBought {
-			wishdataIncremental.NumBoughtIncremental = jsonData.NumBought - product.NumBought
+		if jsonData.Data.Contest.NumBought > product.NumBought {
+			wishdataIncremental.NumBoughtIncremental = jsonData.Data.Contest.NumBought - product.NumBought
 		}
-		if jsonData.NumEntered != product.NumEntered {
-			wishdataIncremental.NumCollectionIncremental = jsonData.NumEntered - product.NumEntered
+		if jsonData.Data.Contest.NumEntered != product.NumEntered {
+			wishdataIncremental.NumCollectionIncremental = jsonData.Data.Contest.NumEntered - product.NumEntered
 		}
-		if jsonData.RatingCount != product.RatingCount {
-			wishdataIncremental.RatingCountIncremental = jsonData.RatingCount - product.RatingCount
+		if int(jsonData.Data.Contest.ProductRating.RatingCount) != product.RatingCount {
+			wishdataIncremental.RatingCountIncremental = int(jsonData.Data.Contest.ProductRating.RatingCount) - product.RatingCount
 		}
-		if jsonData.Price != product.Price {
-			wishdataIncremental.PriceIncremental = jsonData.Price - product.Price
+
+		for _, v := range jsonData.Data.Contest.CommerceProductInfo.Variations {
+			if v.Price > 0 {
+				if v.Price != product.Price {
+					wishdataIncremental.PriceIncremental = v.Price - product.Price
+					wishdataIncremental.Price = v.Price
+				}
+				break
+			}
 		}
+
 		if wishdataIncremental.NumBoughtIncremental > 0 ||
 			wishdataIncremental.NumCollectionIncremental > 0 {
-			wishdataIncremental.Price = jsonData.Price
 			wishdataIncremental.Created = time.Now()
 			wishdataIncremental.Updated = time.Now()
-			wishdataIncremental.NumBought = jsonData.NumBought
-			wishdataIncremental.NumCollection = jsonData.NumEntered
-			wishdataIncremental.RatingCount = jsonData.RatingCount
-			wishdataIncremental.ProductId = util.FNV(jsonData.WishId)
+			wishdataIncremental.NumBought = jsonData.Data.Contest.NumBought
+			wishdataIncremental.NumCollection = jsonData.Data.Contest.NumEntered
+			wishdataIncremental.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
+			wishdataIncremental.ProductId = util.FNV(jsonData.Data.Contest.ID)
 
 			_, err := ini.AppWish.Insert(&wishdataIncremental)
 
 			if err != nil {
-				util.Errorln(0, err)
+				log.Print(err)
 			}
 		}
 	}
 
 	product.Updated = time.Now()
-	if product.Price != jsonData.Price ||
-		product.RetailPrice != jsonData.RetailPrice ||
-		product.NumBought != jsonData.NumBought ||
-		product.NumEntered != jsonData.NumEntered ||
-		product.RatingCount != jsonData.RatingCount {
+	if product.NumBought != jsonData.Data.Contest.NumBought ||
+		product.NumEntered != jsonData.Data.Contest.NumEntered ||
+		product.RatingCount != int(jsonData.Data.Contest.ProductRating.RatingCount) {
 
 		configProduct(jsonData, &product)
 
-		if _, err := ini.AppWish.Id(product.Id).Cols("rating_count",
+		if _, err := ini.AppWish.Id(product.Id).Cols(
 			"retail_price",
-			"shipping",
 			"price",
+			"shipping",
 			"num_bought",
 			"num_entered",
-			"true_tag_ids",
 			"updated",
-			"merchant",
-			"merchant_id").Update(&product); err != nil {
-			util.Errorln(0, err)
+			"rating_count").Update(&product); err != nil {
+			log.Print(err)
 		}
 	}
 
 }
 
-func configProduct(jsonData WishProduct, product *model.Product) {
+func configProduct(jsonData model.WishOrginalData, product *model.TProduct) {
+	product.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
 
-	if len(jsonData.TrueTagIds) > 0 {
-		product.TrueTagIds = strings.Join(jsonData.TrueTagIds, ",")
+	var price float64
+	var retailPrice float64
+	var shipping float64
+	variations := jsonData.Data.Contest.CommerceProductInfo.Variations
+	if len(variations) > 0 {
+		retailPrice = variations[0].RetailPrice
+		price = variations[0].Price
+		shipping = variations[0].Shipping
+		for _, v := range jsonData.Data.Contest.CommerceProductInfo.Variations {
+			if v.RetailPrice < retailPrice {
+				retailPrice = v.RetailPrice
+			}
+
+			if v.Shipping < shipping {
+				shipping = v.Shipping
+			}
+
+			if v.Price < price {
+				price = v.Price
+			}
+		}
 	}
 
-	product.Gender = jsonData.Gender
-	product.RatingCount = jsonData.RatingCount
-	product.Price = jsonData.Price
-	product.Size = jsonData.Size
-	product.Color = jsonData.Color
-	product.WishId = jsonData.WishId
-	product.MaxShippingTime = jsonData.MaxShippingTime
-	product.MinShippingTime = jsonData.MinShippingTime
-	product.RetailPrice = jsonData.RetailPrice
-	product.Merchant = jsonData.MerchantName
-	product.MerchantId = util.FNV(product.Merchant)
-	product.Shipping = jsonData.Shipping
-	product.GenerationTime = jsonData.GenerationTime
-	product.RetailPrice = jsonData.RetailPrice
-	product.Tags = jsonData.Tags
-	product.MerchantTags = jsonData.MerchantTags
-	product.NumEntered = jsonData.NumEntered
-	product.NumBought = jsonData.NumBought
-	product.Name = jsonData.Name
-	product.Description = jsonData.Description
+	product.Price = price
+	product.RetailPrice = retailPrice
+	product.Shipping = shipping
+	product.WishId = jsonData.Data.Contest.ID
+	product.NumEntered = jsonData.Data.Contest.NumEntered
+	product.NumBought = jsonData.Data.Contest.NumBought
 	product.Updated = time.Now()
-
 }
 
 func nocacheWishId() (datas []string) {
@@ -298,17 +299,17 @@ func nocacheWishId() (datas []string) {
 	var err error
 	result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, size*page)
 	if err != nil {
-		util.Errorln(0, err)
+		log.Print(err)
 	}
 	if len(result) <= 0 {
 		pageChan <- 0
 		if _, err = ini.RedisClient.HSet("load_page", "page", 1).Result(); err != nil {
-			util.Errorln(0, err)
+			log.Print(err)
 		}
 		result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, 0)
 
 		if err != nil {
-			util.Errorln(0, err)
+			log.Print(err)
 		}
 	} else {
 		pageChan <- page + 1
@@ -355,7 +356,7 @@ func wishIdByWeekSalesGtZero() (datas []string) {
 		Result(); err == nil {
 		datas = ids
 	} else {
-		util.Errorln(0, err)
+		log.Print(err)
 	}
 
 	if len(datas) <= 0 {
@@ -364,7 +365,7 @@ func wishIdByWeekSalesGtZero() (datas []string) {
 			Result(); err == nil {
 			datas = ids
 		} else {
-			util.Errorln(0, err)
+			log.Print(err)
 		}
 
 		weekSalesPageChan <- 1
@@ -372,4 +373,61 @@ func wishIdByWeekSalesGtZero() (datas []string) {
 		weekSalesPageChan <- cachePage + 1
 	}
 	return datas
+}
+
+func ZipBytes(input []byte) []byte {
+	var buf bytes.Buffer
+	compressor, err := zlib.NewWriterLevel(&buf, zlib.BestCompression)
+	if err != nil {
+		return input
+	}
+	compressor.Write(input)
+	compressor.Close()
+	return buf.Bytes()
+}
+
+type WishIdJson struct {
+	Message string        `json:"message"`
+	Code    int           `json:"code"`
+	Data    []string      `json:"data"`
+	Users   []model.TUser `json:"users"`
+	Page    int64         `json:"page"`
+}
+
+type WishProductJSON struct {
+	Data []model.WishOrginalData `json:"data"`
+	Ip   string
+}
+
+type WishProduct struct {
+	HasHwc                 int       `json:"has_hwc"`
+	GenerationTime         time.Time `json:"generation_time"` //店铺开张时间
+	RatingCount            int       `json:"rating_count"`
+	Keyword                string    `json:"keyword"`
+	Merchant               string    `json:"merchant"`
+	MerchantName           string    `json:"merchant_name"`
+	ContestSelectedPicture string    `json:"contest_selected_picture"`
+	ExternalUrl            string    `json:"external_url"`
+	Name                   string    `json:"name"`
+	Countrys               string    `json:"countrys"`
+	ExtraPhotoUrls         string    `json:"extra_photo_urls"`
+	WishId                 string    `json:"wish_id"`
+	Color                  string    `json:"color"`
+	Size                   string    `json:"size"`
+	Price                  float64   `json:"price"`
+	RetailPrice            float64   `json:"retail_price"`
+	MerchantTags           string    `json:"merchant_tags"`
+	Tags                   string    `json:"tags"`
+	Shipping               float64   `json:"shipping"`
+	NumBought              int       `json:"num_bought"`
+	MaxShippingTime        int       `json:"max_shipping_time"`
+	MinShippingTime        int       `json:"min_shipping_time"`
+	NumEntered             int       `json:"num_entered"`
+	Code                   int       `json:"code"`
+	Description            string    `json:"description"`
+	Gender                 int       `json:"gender"`
+	IsVerified             bool      `json:"is_verified"`
+	CurrentlyViewing       int       `json:"currently_viewing"`
+	Time                   int64     `json:"time"`
+	TrueTagIds             []string  `json:"true_tag_ids"`
 }

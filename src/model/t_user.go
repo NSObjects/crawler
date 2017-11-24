@@ -2,12 +2,13 @@ package model
 
 import (
 	"crawler/src/ini"
-	"crawler/src/util"
 	"math/rand"
 	"time"
+
+	"github.com/labstack/gommon/log"
 )
 
-type User struct {
+type TUser struct {
 	Id                    int64  `json:"id" xorm:"pk autoincr BIGINT(20)"`
 	Baid                  string `json:"baid" xorm:"not null default '' VARCHAR(255)"`
 	SweeperSession        string `json:"sweeper_session" xorm:"not null default '' VARCHAR(255)"`
@@ -24,21 +25,21 @@ type User struct {
 	Gender                string `json:"gender" xorm:"VARCHAR(11)"`
 }
 
-var u [][]User
+var u [][]TUser
 
-func GetUsers() []User {
+func GetUsers() []TUser {
 	if len(u) <= 0 {
 		contrys := []string{"Britain", "Canada", "Australia", "France", "Germany", "America"}
 		for _, contry := range contrys {
-			var user []User
+			var user []TUser
 			err := ini.AppWish.Where("has_address=1").And("country=?", contry).Find(&user)
 			if err != nil {
-				util.Errorln(0, err)
+				log.Print(err)
 			}
 			u = append(u, user)
 		}
 	}
-	var users []User
+	var users []TUser
 
 	for _, userList := range u {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))

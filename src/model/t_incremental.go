@@ -1,10 +1,8 @@
 package model
 
-import (
-	"time"
-)
+import "time"
 
-type Incremental struct {
+type TIncremental struct {
 	Id                       int       `json:"id" xorm:"not null pk autoincr INT(30)"`
 	NumBought                int       `json:"num_bought" xorm:"INT(15)"`
 	RatingCount              int       `json:"rating_count" xorm:"INT(15)"`

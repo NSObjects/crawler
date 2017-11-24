@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/jinzhu/now"
-
 )
 
 var (
@@ -25,10 +24,10 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 	start := now.BeginningOfWeek()
 	end := now.EndOfDay()
 	results, err := ini.AppWish.Query("select DISTINCT product_id "+
-		"from incremental "+
+		"from t_incremental "+
 		"where product_id "+
 		"in (select product_id "+
-		"from incremental where created>=? and created<=? group by product_id"+
+		"from t_incremental where created>=? and created<=? group by product_id"+
 		" having sum(product_id)>0)", start, end)
 
 	if err != nil {
@@ -36,7 +35,7 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 	}
 	for _, r := range results {
 		if productId, err := strconv.Atoi(string(r["product_id"])); err == nil {
-			var product model.Product
+			var product model.TProduct
 			if _, err := ini.AppWish.Id(productId).Get(&product); err == nil {
 				if product.WishId != "" {
 					if err := ini.RedisClient.RPush(WEEK_SALES_GREATER_THAN_ZERO, product.WishId).Err(); err != nil {
@@ -56,7 +55,7 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 }
 
 func CacheWishId() {
-	loadPage := &model.LoadPage{Id: 1}
+	loadPage := &model.TLoadPage{Id: 1}
 	_, err := ini.AppWish.Get(loadPage)
 	if err != nil {
 		panic(err)
@@ -66,10 +65,10 @@ func CacheWishId() {
 	for {
 		AllWishIdCacheLenght, _ = ini.RedisClient.LLen(ALL_WISH_ID_CACHE).Result()
 		if AllWishIdCacheLenght < 400000 {
-			results, err := ini.AppWish.Query("select wish_id from `wish_id` order by id limit 10000 offset ?", page*10000)
+			results, err := ini.AppWish.Query("select wish_id from `t_wish_id` order by id limit 10000 offset ?", page*10000)
 			if err != nil || len(results) == 0 {
 				page = 0
-				_, err := ini.AppWish.Exec("update load_page set all_wishid_cache_page=0")
+				_, err := ini.AppWish.Exec("update t_load_page set all_wishid_cache_page=0")
 				if err != nil {
 					panic(err)
 				}
@@ -83,7 +82,7 @@ func CacheWishId() {
 			}
 		}
 		page++
-		_, err := ini.AppWish.Exec("update load_page set all_wishid_cache_page=?", page)
+		_, err := ini.AppWish.Exec("update t_load_page set all_wishid_cache_page=?", page)
 		if err != nil {
 			panic(err)
 		}
@@ -92,7 +91,7 @@ func CacheWishId() {
 }
 
 func CacheSalesGreaterThanWishId() {
-	var loadPage model.LoadPage
+	var loadPage model.TLoadPage
 	_, err := ini.AppWish.Id(1).Get(&loadPage)
 	if err != nil {
 		panic(err)
@@ -101,10 +100,10 @@ func CacheSalesGreaterThanWishId() {
 	for {
 		SalesGreaterThanZeroCacheLenght, _ = ini.RedisClient.LLen(SALES_GREATER_THAN_ZERO).Result()
 		if SalesGreaterThanZeroCacheLenght < 400000 {
-			results, err := ini.AppWish.Query("select wish_id from product where num_bought > 0 order by id limit 10000 offset ?", page*10000)
+			results, err := ini.AppWish.Query("select wish_id from t_product where num_bought > 0 order by id limit 10000 offset ?", page*10000)
 			if err != nil || len(results) == 0 {
 				page = 0
-				_, err := ini.AppWish.Exec("update load_page set sales_gt_zero_page=0")
+				_, err := ini.AppWish.Exec("update t_load_page set sales_gt_zero_page=0")
 				if err != nil {
 					panic(err)
 				}
@@ -118,7 +117,7 @@ func CacheSalesGreaterThanWishId() {
 			}
 		}
 		page++
-		_, err := ini.AppWish.Exec("update load_page set sales_gt_zero_page=?", page)
+		_, err := ini.AppWish.Exec("update t_load_page set sales_gt_zero_page=?", page)
 		if err != nil {
 			panic(err)
 		}

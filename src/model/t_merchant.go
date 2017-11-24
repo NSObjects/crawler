@@ -2,6 +2,7 @@ package model
 
 import (
 	"crawler/src/ini"
+	"log"
 
 	"crawler/src/util"
 	"encoding/json"
@@ -19,7 +20,7 @@ var (
 
 const MERCHANT_NAME_CACHE = "mernchant_name"
 
-type Merchant struct {
+type TMerchant struct {
 	Id                      uint32    `json:"id" xorm:"not null pk autoincr INT(255)"`
 	MerchantName            string    `json:"merchant_name" xorm:"not null default '' unique VARCHAR(255)"`
 	ProductCount            int       `json:"product_count" xorm:"not null INT(255)"`
@@ -31,7 +32,7 @@ type Merchant struct {
 	ApprovedDate            time.Time `json:"approved_date" xorm:"index DATETIME"`
 }
 
-func (this *Merchant) GetMerchantName() (wishIdJSON MerchantNameJSON, err error) {
+func (this *TMerchant) GetMerchantName() (wishIdJSON MerchantNameJSON, err error) {
 	if merchantLenght == 0 {
 		merchantLenght, _ = ini.RedisClient.LLen(MERCHANT_NAME_CACHE).Result()
 		if merchantLenght <= 0 {
@@ -44,7 +45,7 @@ func (this *Merchant) GetMerchantName() (wishIdJSON MerchantNameJSON, err error)
 				if string(r["merchant_name"]) != "" {
 					err = ini.RedisClient.RPush(MERCHANT_NAME_CACHE, string(r["merchant_name"])).Err()
 					if err != nil {
-						util.Errorln(0, err)
+						log.Println(err)
 					}
 				}
 			}
@@ -72,7 +73,7 @@ func (this *Merchant) GetMerchantName() (wishIdJSON MerchantNameJSON, err error)
 	return
 }
 
-func (this *Merchant) MerchantInfoHandler(ctx echo.Context) error {
+func (this *TMerchant) MerchantInfoHandler(ctx echo.Context) error {
 	var dat MerchantJSON
 	b, err := ioutil.ReadAll(ctx.Request().Body)
 
@@ -87,11 +88,12 @@ func (this *Merchant) MerchantInfoHandler(ctx echo.Context) error {
 
 	for _, id := range dat.WishIds {
 		if len(id) == 24 {
-			wishID := WishId{WishId: id}
+			wishID := TWishId{WishId: id}
 			wishID.Created = time.Now()
 			if _, err := ini.AppWish.Insert(&wishID); err != nil {
 				if strings.Contains(err.Error(), "Error 1062: Duplicate entry") == false {
-					util.Errorln(0, err)
+					log.Println(err)
+					log.Println(err)
 				}
 
 			}
@@ -99,7 +101,7 @@ func (this *Merchant) MerchantInfoHandler(ctx echo.Context) error {
 	}
 
 	if len(dat.MerchantInfo.Name) > 0 {
-		merchant := Merchant{Id: util.FNV(dat.MerchantInfo.Name)}
+		merchant := TMerchant{Id: util.FNV(dat.MerchantInfo.Name)}
 		if dat.MerchantInfo.ApprovedDate > 0 {
 			merchant.ApprovedDate = time.Unix(int64(dat.MerchantInfo.ApprovedDate), 0)
 		} else {
@@ -138,7 +140,7 @@ type MerchantJSON struct {
 }
 
 type MerchantNameJSON struct {
-	Users       User   `json:"users"`
+	Users       TUser  `json:"users"`
 	MerchntName string `json:"merchnt_name"`
 }
 

@@ -14,7 +14,7 @@ type MerchantController struct {
 func (this *MerchantController) RegisterRoute(g *echo.Group) {
 	g.GET("/merchantCrawler", this.GetMerchant)
 	g.POST("/merchantCrawler", this.Post)
-	this.Data = new(model.Merchant)
+	this.Data = new(model.TMerchant)
 }
 
 func (this *MerchantController) GetMerchant(ctx echo.Context) error {
