@@ -8,8 +8,6 @@ import (
 
 	"github.com/labstack/echo"
 
-	_ "github.com/sevenNt/echo-pprof"
-
 	"crawler/src/global"
 
 	_ "net/http/pprof"
