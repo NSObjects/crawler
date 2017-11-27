@@ -26,7 +26,7 @@ type mockMerchantData struct{}
 
 func (this *mockMerchantData) GetMerchantName() (wishIdJSON model.MerchantNameJSON, err error) {
 	wishIdJSON.MerchntName = "hello"
-	wishIdJSON.Users = model.User{
+	wishIdJSON.Users = model.TUser{
 		UserId:   "9527",
 		Email:    "lt@pyl.com",
 		Password: "123456",
