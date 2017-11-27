@@ -23,9 +23,9 @@ import (
 	"time"
 )
 
-const Host string = "47.52.91.154:2596"
+//const Host string = "47.52.91.154:2596"
 
-//const Host string = "localhost:2596"
+const Host string = "localhost:2596"
 
 var log = logrus.New()
 

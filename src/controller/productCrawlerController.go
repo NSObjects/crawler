@@ -12,10 +12,10 @@ import (
 	"github.com/labstack/echo"
 
 	"bytes"
+	"compress/gzip"
 	"compress/zlib"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -98,22 +98,25 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 
 func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 
-	b, err := ioutil.ReadAll(ctx.Request().Body)
+	var b []byte
+	reader, err := gzip.NewReader(ctx.Request().Body)
+	buf := bytes.NewBuffer(b)
+	buf.ReadFrom(reader)
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"productCrawlerController.go": "104",
 		}).Error(err)
+		return err
 	}
 
-	if len(b) > 0 {
+	if len(buf.Bytes()) > 0 {
 		ip := strings.Split(ctx.Request().RemoteAddr, ":")
 		if len(ip) > 0 {
 			if ip[0] != "[" {
 				fmt.Println(ip[0])
 			}
 		}
-
-		SaveProductToDBFrom(b)
+		SaveProductToDBFrom(buf.Bytes())
 	}
 
 	return ctx.String(http.StatusOK, "ok")
