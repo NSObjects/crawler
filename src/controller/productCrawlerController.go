@@ -42,9 +42,6 @@ func init() {
 	} else {
 		log.Info("Failed to log to file, using default stderr")
 	}
-	log.WithFields(logrus.Fields{
-		"filename": "123.txt",
-	}).Info("打开文件失败")
 }
 
 type ProductCrawlerController struct{}

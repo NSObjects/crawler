@@ -82,7 +82,7 @@ type LoginInfo struct {
 	NotiCount   int       `json:"noti_count"`
 }
 
-func WishLoginWith(user *User) error {
+func WishLoginWith(user *TUser) error {
 	// Wish登录 (POST http://www.wish.com/api/email-login)
 
 	body := requestBody(user.Password, user.Email)
@@ -142,7 +142,7 @@ func WishLoginWith(user *User) error {
 	return nil
 }
 
-func RegistIdWith() (user User) {
+func RegistIdWith() (user TUser) {
 	// 注册 (POST https://www.wish.com/api/email-signup)
 
 	firstNames := []string{
@@ -286,7 +286,7 @@ func RegistIdWith() (user User) {
 
 }
 
-func UpdateUser(user User, gender string) {
+func UpdateUser(user TUser, gender string) {
 	// 更新用户信息 (POST https://www.wish.com/api/profile/update)
 
 	params := url.Values{}
