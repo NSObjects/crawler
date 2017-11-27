@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/astaxie/beego/orm"
-	"github.com/labstack/gommon/log"
+
 	uuid "github.com/satori/go.uuid"
 )
 
