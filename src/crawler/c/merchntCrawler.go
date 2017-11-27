@@ -4,8 +4,6 @@ import (
 	"crawler/src/model"
 	"errors"
 
-	"go.uber.org/zap"
-
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
@@ -18,8 +16,7 @@ import (
 )
 
 func CrawlerWishId() {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
+
 	if w, err := requestMerchnt(); err == nil {
 		if m, err := getWishIdFromMerchant(w.MerchntName, w.Users); err == nil {
 			if m["wish_ids"] != nil {
@@ -28,7 +25,7 @@ func CrawlerWishId() {
 			}
 		}
 	} else {
-		logger.Error(err.Error())
+		log.Error(err)
 	}
 
 	CrawlerWishId()
@@ -58,8 +55,7 @@ func requestMerchnt() (w WishIdJSON, err error) {
 }
 
 func getWishIdFromMerchant(merchant string, user model.TUser) (m map[string]interface{}, err error) {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
+
 	if v, err := login(user); err == nil {
 		user = v
 	}
@@ -93,7 +89,7 @@ func getWishIdFromMerchant(merchant string, user model.TUser) (m map[string]inte
 					break
 				}
 			} else {
-				logger.Error(err.Error())
+				log.Error(err)
 				break
 			}
 		}
@@ -228,11 +224,10 @@ func headerWish(req *http.Request, user model.TUser) *http.Request {
 }
 
 func sendWishid(wishIds map[string]interface{}) {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
+
 	jsonString, err := json.Marshal(wishIds)
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err)
 	}
 
 	body := bytes.NewBuffer(jsonString)
@@ -240,7 +235,7 @@ func sendWishid(wishIds map[string]interface{}) {
 	urlStr := fmt.Sprintf("http://%s/api/merchantCrawler", Host)
 	req, err := http.NewRequest("POST", urlStr, body)
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err)
 	}
 
 	req.Header.Add("Content-Type", "application/json; charset=utf-8")

@@ -16,8 +16,8 @@ func main() {
 	//utility.Errorln(4, "更新IP: ", ip)
 	//utility.AppName = "WishCrawler"
 	go c.CrawlerProduct()
-	//go CrawlerWishId()
-	//go FeedCrawler()
+	go c.CrawlerWishId()
+	go c.FeedCrawler()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		exec_shell("update.sh")
 	})

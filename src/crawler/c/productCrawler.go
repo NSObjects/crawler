@@ -5,8 +5,11 @@ import (
 	"compress/gzip"
 	"crawler/src/model"
 	"crawler/src/util"
+	"os"
 
 	"go.uber.org/zap"
+
+	"github.com/Sirupsen/logrus"
 
 	"encoding/json"
 	"errors"
@@ -20,8 +23,23 @@ import (
 	"time"
 )
 
-//const Host string = "45.76.220.102:2596"
-const Host string = "localhost:2596"
+const Host string = "47.52.91.154:2596"
+
+//const Host string = "localhost:2596"
+
+var log = logrus.New()
+
+func init() {
+	file, err := os.OpenFile("logrus.log", os.O_CREATE|os.O_WRONLY, 0666)
+	if err == nil {
+		log.Out = file
+	} else {
+		log.Info("Failed to log to file, using default stderr")
+	}
+	log.WithFields(logrus.Fields{
+		"filename": "123.txt",
+	}).Info("打开文件失败")
+}
 
 func CrawlerProduct() {
 	if taskData, err := requestTaskData(); err == nil {
@@ -31,26 +49,24 @@ func CrawlerProduct() {
 			go sendRequest(proudcts)
 		}
 	} else {
-		fmt.Println(err)
+		log.Error(err)
 	}
 	time.Sleep(3 * time.Second)
 	CrawlerProduct()
 }
 
 func FeedCrawler() {
-	//u := model.RegistIdWith()
-	//crawlerProduct(u)
+	u := model.RegistIdWith()
+	crawlerProduct(u)
 }
 
 func requestTaskData() (taskData TaskData, err error) {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
 
 	client := &http.Client{}
 	urlStr := fmt.Sprintf("http://%s/api/wishdata", Host)
 	req, err := http.NewRequest("GET", urlStr, nil)
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err)
 		return
 	}
 
@@ -88,7 +104,7 @@ func crawlerWishData(taskData TaskData) (proudcts []model.WishOrginalData) {
 				if product, err := requestProductData(id, user); err == nil {
 					proudcts = append(proudcts, product)
 				} else {
-					logger.Error(err.Error())
+					log.Error(err)
 				}
 				wg.Done()
 			})
@@ -110,7 +126,7 @@ func sendRequest(p []model.WishOrginalData) (err error) {
 	data["data"] = p
 	body, err := json.Marshal(&data)
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err)
 		return err
 	}
 
@@ -120,12 +136,12 @@ func sendRequest(p []model.WishOrginalData) (err error) {
 
 	_, err = w.Write(body)
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err)
 		return err
 	}
 	err = w.Flush()
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err)
 		return err
 	}
 
@@ -134,7 +150,7 @@ func sendRequest(p []model.WishOrginalData) (err error) {
 
 	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(b.Bytes()))
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err)
 		return err
 	}
 
@@ -144,7 +160,7 @@ func sendRequest(p []model.WishOrginalData) (err error) {
 		defer resp.Body.Close()
 	}
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err)
 		return err
 	}
 	fmt.Printf("发送数据%d条", len(p))
@@ -177,7 +193,7 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", "http://www.wish.com/api/product/get", body)
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err)
 		return wishProduct, err
 	}
 	req = wheaderWish(req, user)
@@ -186,7 +202,7 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 		defer resp.Body.Close()
 	}
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err)
 		return wishProduct, err
 	}
 	var reader io.ReadCloser
@@ -194,7 +210,7 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 	case "gzip":
 		reader, err = gzip.NewReader(resp.Body)
 		if err != nil {
-			logger.Error(err.Error())
+			log.Error(err)
 			return wishProduct, err
 		}
 	default:
