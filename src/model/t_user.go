@@ -1,7 +1,6 @@
 package model
 
 import (
-	"WishApi/utility"
 	"bytes"
 	"crawler/src/ini"
 	"crypto/hmac"
@@ -246,18 +245,18 @@ func RegistIdWith() (user TUser) {
 	// Read Response Body
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		utility.Errorln(0, err)
+		log.Print(err)
 		if e, ok := err.(*json.SyntaxError); ok {
-			utility.Errorln(0, e)
+			log.Print(e)
 		}
 	}
 
 	var loginInfo LoginInfo
 	err = json.Unmarshal(respBody, &loginInfo)
 	if err != nil {
-		utility.Errorln(0, err)
+		log.Print(err)
 		if e, ok := err.(*json.SyntaxError); ok {
-			utility.Errorln(0, e)
+			log.Print(e)
 		}
 	}
 
@@ -351,7 +350,7 @@ func UpdateUser(user TUser, gender string) {
 	o := orm.NewOrm()
 	user.Gender = gender
 	if _, err := o.Insert(&user); err != nil {
-		utility.Errorln(4, err.Error())
+		log.Print(err)
 	}
 
 }
