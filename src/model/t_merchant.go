@@ -2,7 +2,9 @@ package model
 
 import (
 	"crawler/src/ini"
-	"log"
+	"os"
+
+	"github.com/Sirupsen/logrus"
 
 	"crawler/src/util"
 	"encoding/json"
@@ -19,6 +21,17 @@ var (
 )
 
 const MERCHANT_NAME_CACHE = "mernchant_name"
+
+var log = logrus.New()
+
+func init() {
+	file, err := os.OpenFile("err.log", os.O_CREATE|os.O_WRONLY, 0666)
+	if err == nil {
+		log.Out = file
+	} else {
+		log.Info("Failed to log to file, using default stderr")
+	}
+}
 
 type TMerchant struct {
 	Id                      uint32    `json:"id" xorm:"not null pk autoincr INT(255)"`
@@ -45,7 +58,9 @@ func (this *TMerchant) GetMerchantName() (wishIdJSON MerchantNameJSON, err error
 				if string(r["merchant_name"]) != "" {
 					err = ini.RedisClient.RPush(MERCHANT_NAME_CACHE, string(r["merchant_name"])).Err()
 					if err != nil {
-						log.Println(err)
+						log.WithFields(logrus.Fields{
+							"t_merchant.go": "62",
+						}).Error(err)
 					}
 				}
 			}
@@ -92,8 +107,9 @@ func (this *TMerchant) MerchantInfoHandler(ctx echo.Context) error {
 			wishID.Created = time.Now()
 			if _, err := ini.AppWish.Insert(&wishID); err != nil {
 				if strings.Contains(err.Error(), "Error 1062: Duplicate entry") == false {
-					log.Println(err)
-					log.Println(err)
+					log.WithFields(logrus.Fields{
+						"t_merchant.go": "111",
+					}).Error(err)
 				}
 
 			}

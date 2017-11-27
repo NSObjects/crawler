@@ -4,6 +4,8 @@ import (
 	"crawler/src/model"
 	"errors"
 
+	"github.com/Sirupsen/logrus"
+
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
@@ -25,7 +27,9 @@ func CrawlerWishId() {
 			}
 		}
 	} else {
-		log.Error(err)
+		log.WithFields(logrus.Fields{
+			"merchantCrawler.go.go": "31",
+		}).Error(err)
 	}
 
 	CrawlerWishId()
@@ -89,7 +93,9 @@ func getWishIdFromMerchant(merchant string, user model.TUser) (m map[string]inte
 					break
 				}
 			} else {
-				log.Error(err)
+				log.WithFields(logrus.Fields{
+					"merchantCrawler.go.go": "98",
+				}).Error(err)
 				break
 			}
 		}
@@ -227,7 +233,9 @@ func sendWishid(wishIds map[string]interface{}) {
 
 	jsonString, err := json.Marshal(wishIds)
 	if err != nil {
-		log.Error(err)
+		log.WithFields(logrus.Fields{
+			"merchantCrawler.go.go": "237",
+		}).Error(err)
 	}
 
 	body := bytes.NewBuffer(jsonString)
@@ -235,7 +243,9 @@ func sendWishid(wishIds map[string]interface{}) {
 	urlStr := fmt.Sprintf("http://%s/api/merchantCrawler", Host)
 	req, err := http.NewRequest("POST", urlStr, body)
 	if err != nil {
-		log.Error(err)
+		log.WithFields(logrus.Fields{
+			"merchantCrawler.go.go": "247",
+		}).Error(err)
 	}
 
 	req.Header.Add("Content-Type", "application/json; charset=utf-8")
