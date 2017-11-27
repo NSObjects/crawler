@@ -14,14 +14,14 @@ import (
 	"time"
 )
 
-func crawlerProduct(user model.User) {
+func crawlerProduct(user model.TUser) {
 	for {
 		getWishIdFromFeed("tabbed_feed_latest", user)
 	}
 
 }
 
-func getWishIdFromFeed(categoryId string, user model.User) {
+func getWishIdFromFeed(categoryId string, user model.TUser) {
 
 	page := 0
 	for {
@@ -36,7 +36,7 @@ func getWishIdFromFeed(categoryId string, user model.User) {
 
 }
 
-func loadFeed(page int, categoryId string, user model.User) error {
+func loadFeed(page int, categoryId string, user model.TUser) error {
 
 	body := feedBodyWith(page, user, categoryId)
 
@@ -117,7 +117,7 @@ func loadFeed(page int, categoryId string, user model.User) error {
 	return nil
 }
 
-func feedBodyWith(page int, user model.User, category string) *bytes.Buffer {
+func feedBodyWith(page int, user model.TUser, category string) *bytes.Buffer {
 
 	params := url.Values{}
 	params.Set("_capabilities[]", "11")

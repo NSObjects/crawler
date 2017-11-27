@@ -1,26 +1,28 @@
 package main
 
 import (
+	"crawler/src/controller"
 	"crawler/src/ini"
 	"crawler/src/router"
 	"crawler/src/util"
+
+	"github.com/labstack/echo"
 
 	_ "github.com/sevenNt/echo-pprof"
 
 	"crawler/src/global"
 
-	"crawler/src/controller"
 	_ "net/http/pprof"
-
-	"github.com/labstack/echo"
 )
 
 func main() {
 	ServeBackGround()
 	controller.Setup()
 	e := echo.New()
+
 	util.Wrap(e)
 	g := e.Group("/api")
+
 	router.RegisterRoutes(g)
 	e.Logger.Fatal(e.Start(":2596"))
 }

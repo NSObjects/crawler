@@ -5,7 +5,8 @@ import (
 	"compress/gzip"
 	"crawler/src/model"
 	"crawler/src/util"
-	"log"
+
+	"go.uber.org/zap"
 
 	"encoding/json"
 	"errors"
@@ -37,16 +38,19 @@ func CrawlerProduct() {
 }
 
 func FeedCrawler() {
-	u := model.RegistIdWith()
-	crawlerProduct(u)
+	//u := model.RegistIdWith()
+	//crawlerProduct(u)
 }
 
 func requestTaskData() (taskData TaskData, err error) {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+
 	client := &http.Client{}
 	urlStr := fmt.Sprintf("http://%s/api/wishdata", Host)
 	req, err := http.NewRequest("GET", urlStr, nil)
 	if err != nil {
-		log.Print(err)
+		logger.Error(err.Error())
 		return
 	}
 
@@ -70,7 +74,8 @@ func requestTaskData() (taskData TaskData, err error) {
 }
 
 func crawlerWishData(taskData TaskData) (proudcts []model.WishOrginalData) {
-
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	var wg sync.WaitGroup
 	p := util.New(30)
 	for _, wishId := range taskData.WishIds {
@@ -83,7 +88,7 @@ func crawlerWishData(taskData TaskData) (proudcts []model.WishOrginalData) {
 				if product, err := requestProductData(id, user); err == nil {
 					proudcts = append(proudcts, product)
 				} else {
-					fmt.Println(err)
+					logger.Error(err.Error())
 				}
 				wg.Done()
 			})
@@ -98,22 +103,38 @@ func crawlerWishData(taskData TaskData) (proudcts []model.WishOrginalData) {
 }
 
 func sendRequest(p []model.WishOrginalData) (err error) {
-
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	data := make(map[string]interface{})
 
 	data["data"] = p
 	body, err := json.Marshal(&data)
 	if err != nil {
-		fmt.Println(err)
+		logger.Error(err.Error())
+		return err
+	}
+
+	var b bytes.Buffer
+	w := gzip.NewWriter(&b)
+	defer w.Close()
+
+	_, err = w.Write(body)
+	if err != nil {
+		logger.Error(err.Error())
+		return err
+	}
+	err = w.Flush()
+	if err != nil {
+		logger.Error(err.Error())
 		return err
 	}
 
 	client := &http.Client{}
 	urlStr := fmt.Sprintf("http://%s/api/wishdata", Host)
 
-	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(b.Bytes()))
 	if err != nil {
-		fmt.Println(err)
+		logger.Error(err.Error())
 		return err
 	}
 
@@ -123,10 +144,11 @@ func sendRequest(p []model.WishOrginalData) (err error) {
 		defer resp.Body.Close()
 	}
 	if err != nil {
-		fmt.Println(err)
+		logger.Error(err.Error())
 		return err
 	}
-
+	fmt.Printf("发送数据%d条", len(p))
+	//logger.Debug(fmt.Sprintf("发送数据%条", len(p)))
 	return nil
 }
 
@@ -147,13 +169,15 @@ func requestProductData(wishID string, user model.TUser) (wishPorduct model.Wish
 }
 
 func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, e error) {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	var wishProduct model.WishOrginalData
 
 	body := wbodyWish(wishID, user)
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", "http://www.wish.com/api/product/get", body)
 	if err != nil {
-		log.Print(err)
+		logger.Error(err.Error())
 		return wishProduct, err
 	}
 	req = wheaderWish(req, user)
@@ -162,7 +186,7 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 		defer resp.Body.Close()
 	}
 	if err != nil {
-		log.Print(err)
+		logger.Error(err.Error())
 		return wishProduct, err
 	}
 	var reader io.ReadCloser
@@ -170,7 +194,7 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 	case "gzip":
 		reader, err = gzip.NewReader(resp.Body)
 		if err != nil {
-			log.Print(err)
+			logger.Error(err.Error())
 			return wishProduct, err
 		}
 	default:
@@ -185,9 +209,9 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 
 	if resp.StatusCode != 200 {
 		if resp.StatusCode == 405 {
-			log.Print(err)
+			logger.Error(wishProduct.Msg)
 		} else if wishProduct.Code != 12 && wishProduct.Code != 13 && wishProduct.Code != 11 {
-			log.Print(err)
+			logger.Error(wishProduct.Msg)
 		}
 		return wishProduct, nil
 	}

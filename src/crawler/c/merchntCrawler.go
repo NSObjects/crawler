@@ -3,7 +3,8 @@ package c
 import (
 	"crawler/src/model"
 	"errors"
-	"log"
+
+	"go.uber.org/zap"
 
 	"bytes"
 	"compress/gzip"
@@ -17,7 +18,8 @@ import (
 )
 
 func CrawlerWishId() {
-
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	if w, err := requestMerchnt(); err == nil {
 		if m, err := getWishIdFromMerchant(w.MerchntName, w.Users); err == nil {
 			if m["wish_ids"] != nil {
@@ -26,7 +28,7 @@ func CrawlerWishId() {
 			}
 		}
 	} else {
-		log.Print(err)
+		logger.Error(err.Error())
 	}
 
 	CrawlerWishId()
@@ -55,8 +57,9 @@ func requestMerchnt() (w WishIdJSON, err error) {
 
 }
 
-func getWishIdFromMerchant(merchant string, user model.User) (m map[string]interface{}, err error) {
-
+func getWishIdFromMerchant(merchant string, user model.TUser) (m map[string]interface{}, err error) {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	if v, err := login(user); err == nil {
 		user = v
 	}
@@ -90,7 +93,7 @@ func getWishIdFromMerchant(merchant string, user model.User) (m map[string]inter
 					break
 				}
 			} else {
-				fmt.Println(err)
+				logger.Error(err.Error())
 				break
 			}
 		}
@@ -101,7 +104,7 @@ func getWishIdFromMerchant(merchant string, user model.User) (m map[string]inter
 	return
 }
 
-func loadMerchantProduct(page int, merchant string, user model.User) (feeds *MerchantJSON, err error) {
+func loadMerchantProduct(page int, merchant string, user model.TUser) (feeds *MerchantJSON, err error) {
 
 	body := bodyWith(merchant, page, user)
 
@@ -159,7 +162,7 @@ func loadMerchantProduct(page int, merchant string, user model.User) (feeds *Mer
 
 }
 
-func bodyWith(merchant string, page int, user model.User) *bytes.Buffer {
+func bodyWith(merchant string, page int, user model.TUser) *bytes.Buffer {
 	params := url.Values{}
 
 	params.Set("_app_type", "wish")
@@ -211,7 +214,7 @@ func bodyWith(merchant string, page int, user model.User) *bytes.Buffer {
 	return body
 }
 
-func headerWish(req *http.Request, user model.User) *http.Request {
+func headerWish(req *http.Request, user model.TUser) *http.Request {
 	// Headers
 	req.Header.Add("Accept", "*/*")
 	req.Header.Add("Accept-Encoding", "gzip")
@@ -225,9 +228,11 @@ func headerWish(req *http.Request, user model.User) *http.Request {
 }
 
 func sendWishid(wishIds map[string]interface{}) {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	jsonString, err := json.Marshal(wishIds)
 	if err != nil {
-		log.Print(err)
+		logger.Error(err.Error())
 	}
 
 	body := bytes.NewBuffer(jsonString)
@@ -235,7 +240,7 @@ func sendWishid(wishIds map[string]interface{}) {
 	urlStr := fmt.Sprintf("http://%s/api/merchantCrawler", Host)
 	req, err := http.NewRequest("POST", urlStr, body)
 	if err != nil {
-		log.Print(err)
+		logger.Error(err.Error())
 	}
 
 	req.Header.Add("Content-Type", "application/json; charset=utf-8")
@@ -270,6 +275,6 @@ type MerchantInfo struct {
 }
 
 type WishIdJSON struct {
-	Users       model.User `json:"users"`
-	MerchntName string     `json:"merchnt_name"`
+	Users       model.TUser `json:"users"`
+	MerchntName string      `json:"merchnt_name"`
 }

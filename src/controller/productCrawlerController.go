@@ -5,7 +5,8 @@ import (
 	"crawler/src/ini"
 	"crawler/src/model"
 	"crawler/src/util"
-	"log"
+
+	"go.uber.org/zap"
 
 	"github.com/jinzhu/now"
 	"github.com/labstack/echo"
@@ -42,18 +43,20 @@ func (this ProductCrawlerController) RegisterRoute(g *echo.Group) {
 func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 	var JSONData WishIdJson
 	JSONData.Code = 200
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 
 	if requestCount >= 10 {
 		weekSalesPage := <-weekSalesPageChan
 		weekSalesPageChan <- weekSalesPage
-		_, err := ini.AppWish.Exec("update load_page set week_sales_page=?", weekSalesPage)
+		_, err := ini.AppWish.Exec("update t_load_page set week_sales_page=?", weekSalesPage)
 		if err != nil {
-			log.Print(err)
+			logger.Error(err.Error())
 		}
 		page := <-pageChan
-		_, err = ini.AppWish.Exec("update load_page set all_id_page=?", page)
+		_, err = ini.AppWish.Exec("update t_load_page set all_id_page=?", page)
 		if err != nil {
-			log.Print(err)
+			logger.Error(err.Error())
 		}
 		pageChan <- page
 		requestCount = 0
@@ -81,10 +84,12 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 }
 
 func (this *ProductCrawlerController) Post(ctx echo.Context) error {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 
 	b, err := ioutil.ReadAll(ctx.Request().Body)
 	if err != nil {
-		log.Print(err)
+		logger.Error(err.Error())
 	}
 
 	if len(b) > 0 {
@@ -116,12 +121,19 @@ func Setup() {
 }
 
 func SaveProductToDBFrom(jsonStr []byte) {
+	logger, _ := zap.NewProduction()
+
+	defer logger.Sync()
 	var w WishProductJSON
+
 	err := json.Unmarshal(jsonStr, &w)
 	if err != nil {
-		log.Print(err)
+		logger.Error(err.Error())
 		return
 	}
+
+	fmt.Printf("接收到数据%d条", len(w.Data))
+	//logger.Debug(fmt.Sprintf("接收到数据%条", len(w.Data)))
 
 	for _, j := range w.Data {
 
@@ -136,18 +148,18 @@ func SaveProductToDBFrom(jsonStr []byte) {
 			ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
 			value, err := json.Marshal(&j)
 			if err != nil {
-				log.Print(err)
+				logger.Error(err.Error())
 				continue
 			}
 
 			ps := model.TProductSnapshot{
-				Data:    string(value),
+				Data:    string(ZipBytes(value)),
 				Created: now.BeginningOfDay(),
 				WishId:  j.Data.Contest.ID,
 			}
 			_, err = ini.AppWish.Insert(&ps)
 			if err != nil {
-				log.Print(err)
+				logger.Error(err.Error())
 			}
 
 			var product model.TProduct
@@ -156,7 +168,7 @@ func SaveProductToDBFrom(jsonStr []byte) {
 			configProduct(j, &product)
 			_, err = ini.AppWish.Insert(&product)
 			if err != nil {
-				log.Print(err)
+				logger.Error(err.Error())
 			}
 
 		} else {
@@ -165,13 +177,17 @@ func SaveProductToDBFrom(jsonStr []byte) {
 			if _, err := ini.AppWish.Id(util.FNV(j.Data.Contest.ID)).Get(&product); err == nil {
 				saveWishDataIncremental(j, product)
 			} else {
-				log.Print(err)
+				logger.Error(err.Error())
 			}
 		}
 	}
 }
 
 func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProduct) {
+
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+
 	if len(jsonData.Data.Contest.Name) <= 0 || len(jsonData.Data.Contest.ID) <= 0 || jsonData.Code != 0 {
 		return
 	}
@@ -193,7 +209,7 @@ func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProd
 		v.Created = time.Now()
 
 		if _, err := ini.AppWish.Insert(&v); err != nil {
-			log.Print(err)
+			logger.Error(err.Error())
 		}
 	}
 
@@ -231,7 +247,7 @@ func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProd
 			_, err := ini.AppWish.Insert(&wishdataIncremental)
 
 			if err != nil {
-				log.Print(err)
+				logger.Error(err.Error())
 			}
 		}
 	}
@@ -251,7 +267,7 @@ func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProd
 			"num_entered",
 			"updated",
 			"rating_count").Update(&product); err != nil {
-			log.Print(err)
+			logger.Error(err.Error())
 		}
 	}
 
@@ -293,23 +309,24 @@ func configProduct(jsonData model.WishOrginalData, product *model.TProduct) {
 }
 
 func nocacheWishId() (datas []string) {
-
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	page := <-pageChan
 	var result []map[string][]byte
 	var err error
 	result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, size*page)
 	if err != nil {
-		log.Print(err)
+		logger.Error(err.Error())
 	}
 	if len(result) <= 0 {
 		pageChan <- 0
 		if _, err = ini.RedisClient.HSet("load_page", "page", 1).Result(); err != nil {
-			log.Print(err)
+			logger.Error(err.Error())
 		}
 		result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, 0)
 
 		if err != nil {
-			log.Print(err)
+			logger.Error(err.Error())
 		}
 	} else {
 		pageChan <- page + 1
@@ -338,7 +355,8 @@ func wishIdBySalesGtZero() (datas []string) {
 }
 
 func wishIdByWeekSalesGtZero() (datas []string) {
-
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	cachePage := <-weekSalesPageChan
 	var start = 0
 	var end = 0
@@ -356,7 +374,7 @@ func wishIdByWeekSalesGtZero() (datas []string) {
 		Result(); err == nil {
 		datas = ids
 	} else {
-		log.Print(err)
+		logger.Error(err.Error())
 	}
 
 	if len(datas) <= 0 {
@@ -365,7 +383,7 @@ func wishIdByWeekSalesGtZero() (datas []string) {
 			Result(); err == nil {
 			datas = ids
 		} else {
-			log.Print(err)
+			logger.Error(err.Error())
 		}
 
 		weekSalesPageChan <- 1

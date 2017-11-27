@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"go.uber.org/zap"
+
 	"github.com/jinzhu/now"
 )
 
@@ -19,7 +21,8 @@ var (
 	缓存一周销量大于0的WishId
 */
 func CacheWeekSalesGreaterThanZeroWishId() {
-
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	ini.RedisClient.Del(WEEK_SALES_GREATER_THAN_ZERO).Result()
 	start := now.BeginningOfWeek()
 	end := now.EndOfDay()
@@ -43,10 +46,10 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 					}
 				}
 			} else {
-				fmt.Println(err)
+				logger.Error(err.Error())
 			}
 		} else {
-			fmt.Println(err)
+			logger.Error(err.Error())
 		}
 	}
 
@@ -55,10 +58,12 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 }
 
 func CacheWishId() {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	loadPage := &model.TLoadPage{Id: 1}
 	_, err := ini.AppWish.Get(loadPage)
 	if err != nil {
-		panic(err)
+		logger.Panic(err.Error())
 	}
 
 	page := loadPage.AllWishidCachePage
@@ -70,31 +75,33 @@ func CacheWishId() {
 				page = 0
 				_, err := ini.AppWish.Exec("update t_load_page set all_wishid_cache_page=0")
 				if err != nil {
-					panic(err)
+					logger.Panic(err.Error())
 				}
 				continue
 			}
 			for _, r := range results {
 				err = ini.RedisClient.RPush(ALL_WISH_ID_CACHE, string(r["wish_id"])).Err()
 				if err != nil {
-					fmt.Println(err)
+					logger.Panic(err.Error())
 				}
 			}
 		}
 		page++
 		_, err := ini.AppWish.Exec("update t_load_page set all_wishid_cache_page=?", page)
 		if err != nil {
-			panic(err)
+			logger.Panic(err.Error())
 		}
 	}
 
 }
 
 func CacheSalesGreaterThanWishId() {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
 	var loadPage model.TLoadPage
 	_, err := ini.AppWish.Id(1).Get(&loadPage)
 	if err != nil {
-		panic(err)
+		logger.Panic(err.Error())
 	}
 	page := loadPage.SalesGtZeroPage
 	for {
@@ -105,21 +112,21 @@ func CacheSalesGreaterThanWishId() {
 				page = 0
 				_, err := ini.AppWish.Exec("update t_load_page set sales_gt_zero_page=0")
 				if err != nil {
-					panic(err)
+					logger.Error(err.Error())
 				}
 				continue
 			}
 			for _, r := range results {
 				err = ini.RedisClient.RPush(SALES_GREATER_THAN_ZERO, r["wish_id"]).Err()
 				if err != nil {
-					fmt.Println(err)
+					logger.Error(err.Error())
 				}
 			}
 		}
 		page++
 		_, err := ini.AppWish.Exec("update t_load_page set sales_gt_zero_page=?", page)
 		if err != nil {
-			panic(err)
+			logger.Error(err.Error())
 		}
 	}
 }
