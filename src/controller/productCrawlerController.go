@@ -6,18 +6,18 @@ import (
 	"crawler/src/model"
 	"crawler/src/util"
 	"os"
+	"strconv"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/jinzhu/now"
 	"github.com/labstack/echo"
 
 	"bytes"
+	"compress/gzip"
 	"compress/zlib"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -60,12 +60,16 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 		weekSalesPageChan <- weekSalesPage
 		_, err := ini.AppWish.Exec("update t_load_page set week_sales_page=?", weekSalesPage)
 		if err != nil {
-			log.Error(err)
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "64",
+			}).Error(err)
 		}
 		page := <-pageChan
 		_, err = ini.AppWish.Exec("update t_load_page set all_id_page=?", page)
 		if err != nil {
-			log.Error(err)
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "71",
+			}).Error(err)
 		}
 		pageChan <- page
 		requestCount = 0
@@ -94,20 +98,25 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 
 func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 
-	b, err := ioutil.ReadAll(ctx.Request().Body)
+	var b []byte
+	reader, err := gzip.NewReader(ctx.Request().Body)
+	buf := bytes.NewBuffer(b)
+	buf.ReadFrom(reader)
 	if err != nil {
-		log.Error(err)
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "104",
+		}).Error(err)
+		return err
 	}
 
-	if len(b) > 0 {
+	if len(buf.Bytes()) > 0 {
 		ip := strings.Split(ctx.Request().RemoteAddr, ":")
 		if len(ip) > 0 {
 			if ip[0] != "[" {
 				fmt.Println(ip[0])
 			}
 		}
-
-		SaveProductToDBFrom(b)
+		SaveProductToDBFrom(buf.Bytes())
 	}
 
 	return ctx.String(http.StatusOK, "ok")
@@ -117,7 +126,9 @@ func Setup() {
 	loadPage := &model.TLoadPage{Id: 1}
 	_, err := ini.AppWish.Get(loadPage)
 	if err != nil {
-		panic(err)
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "127",
+		}).Error(err)
 	}
 
 	weekSalesPageChan = make(chan int, 50)
@@ -133,7 +144,9 @@ func SaveProductToDBFrom(jsonStr []byte) {
 
 	err := json.Unmarshal(jsonStr, &w)
 	if err != nil {
-		log.Error(err)
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "145",
+		}).Error(err)
 		return
 	}
 
@@ -152,7 +165,9 @@ func SaveProductToDBFrom(jsonStr []byte) {
 			ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
 			value, err := json.Marshal(&j)
 			if err != nil {
-				log.Error(err)
+				log.WithFields(logrus.Fields{
+					"productCrawlerController.go": "166",
+				}).Error(err)
 				continue
 			}
 
@@ -163,7 +178,9 @@ func SaveProductToDBFrom(jsonStr []byte) {
 			}
 			_, err = ini.AppWish.Insert(&ps)
 			if err != nil {
-				log.Error(err)
+				log.WithFields(logrus.Fields{
+					"productCrawlerController.go": "180",
+				}).Error(err)
 			}
 
 			var product model.TProduct
@@ -172,7 +189,9 @@ func SaveProductToDBFrom(jsonStr []byte) {
 			configProduct(j, &product)
 			_, err = ini.AppWish.Insert(&product)
 			if err != nil {
-				log.Error(err)
+				log.WithFields(logrus.Fields{
+					"productCrawlerController.go": "190",
+				}).Error(err)
 			}
 
 		} else {
@@ -181,7 +200,9 @@ func SaveProductToDBFrom(jsonStr []byte) {
 			if _, err := ini.AppWish.Id(util.FNV(j.Data.Contest.ID)).Get(&product); err == nil {
 				saveWishDataIncremental(j, product)
 			} else {
-				log.Error(err)
+				log.WithFields(logrus.Fields{
+					"productCrawlerController.go": "201",
+				}).Error(err)
 			}
 		}
 	}
@@ -191,27 +212,6 @@ func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProd
 
 	if len(jsonData.Data.Contest.Name) <= 0 || len(jsonData.Data.Contest.ID) <= 0 || jsonData.Code != 0 {
 		return
-	}
-
-	if len(jsonData.Data.Contest.CurrentlyViewing.MessageList) > 0 {
-		currentlyViewing := 0
-		for _, v := range jsonData.Data.Contest.CurrentlyViewing.MessageList {
-			for _, d := range strings.Split(v, " ") {
-				if s, err := strconv.Atoi(d); err == nil {
-					currentlyViewing += s
-				}
-			}
-		}
-		v := model.TViewings{
-			Count:     currentlyViewing,
-			ProductId: util.FNV(jsonData.Data.Contest.ID),
-		}
-
-		v.Created = time.Now()
-
-		if _, err := ini.AppWish.Insert(&v); err != nil {
-			log.Error(err)
-		}
 	}
 
 	wishdataIncremental := model.TIncremental{}
@@ -248,7 +248,9 @@ func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProd
 			_, err := ini.AppWish.Insert(&wishdataIncremental)
 
 			if err != nil {
-				log.Error(err)
+				log.WithFields(logrus.Fields{
+					"productCrawlerController.go": "272",
+				}).Error(err)
 			}
 		}
 	}
@@ -268,19 +270,47 @@ func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProd
 			"num_entered",
 			"updated",
 			"rating_count").Update(&product); err != nil {
-			log.Error(err)
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "294",
+			}).Error(err)
 		}
 	}
 
 }
 
 func configProduct(jsonData model.WishOrginalData, product *model.TProduct) {
+
+	if len(jsonData.Data.Contest.CurrentlyViewing.MessageList) > 0 {
+		currentlyViewing := 0
+		for _, v := range jsonData.Data.Contest.CurrentlyViewing.MessageList {
+			for _, d := range strings.Split(v, " ") {
+				if s, err := strconv.Atoi(d); err == nil {
+					currentlyViewing += s
+				}
+			}
+		}
+		v := model.TViewings{
+			Count:     currentlyViewing,
+			ProductId: util.FNV(jsonData.Data.Contest.ID),
+		}
+
+		v.Created = time.Now()
+
+		if _, err := ini.AppWish.Insert(&v); err != nil {
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "301",
+			}).Error(err)
+		}
+	}
+
 	product.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
 
 	var price float64
 	var retailPrice float64
 	var shipping float64
+
 	variations := jsonData.Data.Contest.CommerceProductInfo.Variations
+
 	if len(variations) > 0 {
 		retailPrice = variations[0].RetailPrice
 		price = variations[0].Price
@@ -316,17 +346,23 @@ func nocacheWishId() (datas []string) {
 	var err error
 	result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, size*page)
 	if err != nil {
-		log.Error(err)
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "344",
+		}).Error(err)
 	}
 	if len(result) <= 0 {
 		pageChan <- 0
 		if _, err = ini.RedisClient.HSet("load_page", "page", 1).Result(); err != nil {
-			log.Error(err)
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "351",
+			}).Error(err)
 		}
 		result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, 0)
 
 		if err != nil {
-			log.Error(err)
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "358",
+			}).Error(err)
 		}
 	} else {
 		pageChan <- page + 1
@@ -373,7 +409,9 @@ func wishIdByWeekSalesGtZero() (datas []string) {
 		Result(); err == nil {
 		datas = ids
 	} else {
-		log.Error(err)
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "407",
+		}).Error(err)
 	}
 
 	if len(datas) <= 0 {
@@ -382,7 +420,9 @@ func wishIdByWeekSalesGtZero() (datas []string) {
 			Result(); err == nil {
 			datas = ids
 		} else {
-			log.Error(err)
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "418",
+			}).Error(err)
 		}
 
 		weekSalesPageChan <- 1
