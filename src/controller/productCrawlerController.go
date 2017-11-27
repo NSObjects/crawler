@@ -6,6 +6,7 @@ import (
 	"crawler/src/model"
 	"crawler/src/util"
 	"os"
+	"strconv"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/jinzhu/now"
@@ -17,7 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -214,29 +214,6 @@ func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProd
 		return
 	}
 
-	if len(jsonData.Data.Contest.CurrentlyViewing.MessageList) > 0 {
-		currentlyViewing := 0
-		for _, v := range jsonData.Data.Contest.CurrentlyViewing.MessageList {
-			for _, d := range strings.Split(v, " ") {
-				if s, err := strconv.Atoi(d); err == nil {
-					currentlyViewing += s
-				}
-			}
-		}
-		v := model.TViewings{
-			Count:     currentlyViewing,
-			ProductId: util.FNV(jsonData.Data.Contest.ID),
-		}
-
-		v.Created = time.Now()
-
-		if _, err := ini.AppWish.Insert(&v); err != nil {
-			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "232",
-			}).Error(err)
-		}
-	}
-
 	wishdataIncremental := model.TIncremental{}
 	if time.Now().YearDay()-product.Updated.YearDay() <= 1 {
 		if jsonData.Data.Contest.NumBought > product.NumBought {
@@ -302,12 +279,38 @@ func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProd
 }
 
 func configProduct(jsonData model.WishOrginalData, product *model.TProduct) {
+
+	if len(jsonData.Data.Contest.CurrentlyViewing.MessageList) > 0 {
+		currentlyViewing := 0
+		for _, v := range jsonData.Data.Contest.CurrentlyViewing.MessageList {
+			for _, d := range strings.Split(v, " ") {
+				if s, err := strconv.Atoi(d); err == nil {
+					currentlyViewing += s
+				}
+			}
+		}
+		v := model.TViewings{
+			Count:     currentlyViewing,
+			ProductId: util.FNV(jsonData.Data.Contest.ID),
+		}
+
+		v.Created = time.Now()
+
+		if _, err := ini.AppWish.Insert(&v); err != nil {
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "301",
+			}).Error(err)
+		}
+	}
+
 	product.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
 
 	var price float64
 	var retailPrice float64
 	var shipping float64
+
 	variations := jsonData.Data.Contest.CommerceProductInfo.Variations
+
 	if len(variations) > 0 {
 		retailPrice = variations[0].RetailPrice
 		price = variations[0].Price

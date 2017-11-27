@@ -98,12 +98,13 @@ func CacheWishId() {
 					log.Error(err)
 				}
 			}
+			page++
+			_, err = ini.AppWish.Exec("update t_load_page set all_wishid_cache_page=?", page)
+			if err != nil {
+				log.Error(err)
+			}
 		}
-		page++
-		_, err := ini.AppWish.Exec("update t_load_page set all_wishid_cache_page=?", page)
-		if err != nil {
-			log.Error(err)
-		}
+
 	}
 
 }
@@ -135,11 +136,12 @@ func CacheSalesGreaterThanWishId() {
 					log.Error(err)
 				}
 			}
+			page++
+			_, err = ini.AppWish.Exec("update t_load_page set sales_gt_zero_page=?", page)
+			if err != nil {
+				log.Error(err)
+			}
 		}
-		page++
-		_, err := ini.AppWish.Exec("update t_load_page set sales_gt_zero_page=?", page)
-		if err != nil {
-			log.Error(err)
-		}
+
 	}
 }
