@@ -116,6 +116,7 @@ func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 				fmt.Println(ip[0])
 			}
 		}
+		fmt.Println(string(buf.Bytes()))
 		SaveProductToDBFrom(buf.Bytes())
 	}
 

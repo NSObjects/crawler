@@ -1,0 +1,13 @@
+time="2017-11-27T16:20:53+08:00" level=error msg="Post http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=175 
+time="2017-11-27T16:20:56+08:00" level=error msg="Get http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=49 
+time="2017-11-27T16:20:59+08:00" level=error msg="Get http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=49 
+time="2017-11-27T16:21:03+08:00" level=error msg="Get http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=49 
+time="2017-11-27T16:21:06+08:00" level=error msg="Get http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=49 
+time="2017-11-27T16:21:09+08:00" level=error msg="Get http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=49 
+time="2017-11-27T16:21:12+08:00" level=error msg="Get http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=49 
+time="2017-11-27T16:21:16+08:00" level=error msg="Get http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=49 
+time="2017-11-27T16:21:19+08:00" level=error msg="Get http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=49 
+time="2017-11-27T16:21:22+08:00" level=error msg="Get http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=49 
+time="2017-11-27T16:21:25+08:00" level=error msg="Get http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=49 
+time="2017-11-27T16:21:28+08:00" level=error msg="Get http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=49 
+time="2017-11-27T16:21:32+08:00" level=error msg="Get http://localhost:2596/api/wishdata: dial tcp [::1]:2596: getsockopt: connection refused" productCrawler.go=49 
