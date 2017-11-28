@@ -150,6 +150,7 @@ func SaveProductToDBFrom(jsonStr []byte) {
 		return
 	}
 
+	fmt.Println(time.Now())
 	fmt.Printf("接收到数据%d条\n", len(w.Data))
 
 	for _, j := range w.Data {
@@ -157,16 +158,16 @@ func SaveProductToDBFrom(jsonStr []byte) {
 		if j.Code != 0 || len(j.Data.Contest.ID) <= 0 {
 			continue
 		}
+		//先查redis中是否缓存了这个产品
+		//如果没有就存一个快照
 
 		id, _ := ini.RedisClient.HGet(global.SNAPSHOT_IDS, j.Data.Contest.ID).Result()
 
 		if len(id) <= 0 {
-
-			ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
 			value, err := json.Marshal(&j)
 			if err != nil {
 				log.WithFields(logrus.Fields{
-					"productCrawlerController.go": "166",
+					"productCrawlerController.go": "169",
 				}).Error(err)
 				continue
 			}
@@ -176,85 +177,103 @@ func SaveProductToDBFrom(jsonStr []byte) {
 				Created: now.BeginningOfDay(),
 				WishId:  j.Data.Contest.ID,
 			}
+
 			_, err = ini.AppWish.Insert(&ps)
+			//保存成功将Key设置为1
 			if err != nil {
-				log.WithFields(logrus.Fields{
-					"productCrawlerController.go": "180",
-				}).Error(err)
+				if strings.Contains(err.Error(), "Duplicate entry") == true {
+					ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
+				} else {
+					log.WithFields(logrus.Fields{
+						"productCrawlerController.go": "184",
+					}).Error(err)
+				}
+			} else {
+				ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
 			}
 
-			var product model.TProduct
+		}
+
+		var product model.TProduct
+		//查数据库中是否有这个产品
+		//如果有新增一条增量，更新产品数据
+		//没有就新增一条产品数据
+		if _, err := ini.AppWish.Id(util.FNV(j.Data.Contest.ID)).Get(&product); err == nil {
+			saveWishDataIncremental(j, product)
+			updateProduct(j, product)
+		} else {
 			product.Created = time.Now()
 			product.Id = util.FNV(j.Data.Contest.ID)
 			configProduct(j, &product)
 			_, err = ini.AppWish.Insert(&product)
 			if err != nil {
-				log.WithFields(logrus.Fields{
-					"productCrawlerController.go": "190",
-				}).Error(err)
-			}
-
-		} else {
-			var product model.TProduct
-
-			if _, err := ini.AppWish.Id(util.FNV(j.Data.Contest.ID)).Get(&product); err == nil {
-				saveWishDataIncremental(j, product)
-			} else {
-				log.WithFields(logrus.Fields{
-					"productCrawlerController.go": "201",
-				}).Error(err)
+				if strings.Contains(err.Error(), " Duplicate entry") == false {
+					log.WithFields(logrus.Fields{
+						"productCrawlerController.go": "190",
+					}).Error(err)
+				}
 			}
 		}
+
 	}
 }
 
 func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProduct) {
 
-	if len(jsonData.Data.Contest.Name) <= 0 || len(jsonData.Data.Contest.ID) <= 0 || jsonData.Code != 0 {
+	if len(jsonData.Data.Contest.Name) <= 0 ||
+		len(jsonData.Data.Contest.ID) <= 0 ||
+		jsonData.Code != 0 {
+		return
+	}
+
+	//如果这个产品更新时间距离现在超过一天，则不更新增量
+	if time.Now().YearDay()-product.Updated.YearDay() > 1 {
 		return
 	}
 
 	wishdataIncremental := model.TIncremental{}
-	if time.Now().YearDay()-product.Updated.YearDay() <= 1 {
-		if jsonData.Data.Contest.NumBought > product.NumBought {
-			wishdataIncremental.NumBoughtIncremental = jsonData.Data.Contest.NumBought - product.NumBought
-		}
-		if jsonData.Data.Contest.NumEntered != product.NumEntered {
-			wishdataIncremental.NumCollectionIncremental = jsonData.Data.Contest.NumEntered - product.NumEntered
-		}
-		if int(jsonData.Data.Contest.ProductRating.RatingCount) != product.RatingCount {
-			wishdataIncremental.RatingCountIncremental = int(jsonData.Data.Contest.ProductRating.RatingCount) - product.RatingCount
-		}
+	if jsonData.Data.Contest.NumBought > product.NumBought {
+		wishdataIncremental.NumBoughtIncremental = jsonData.Data.Contest.NumBought - product.NumBought
+	}
+	if jsonData.Data.Contest.NumEntered != product.NumEntered {
+		wishdataIncremental.NumCollectionIncremental = jsonData.Data.Contest.NumEntered - product.NumEntered
+	}
+	if int(jsonData.Data.Contest.ProductRating.RatingCount) != product.RatingCount {
+		wishdataIncremental.RatingCountIncremental = int(jsonData.Data.Contest.ProductRating.RatingCount) - product.RatingCount
+	}
 
-		for _, v := range jsonData.Data.Contest.CommerceProductInfo.Variations {
-			if v.Price > 0 {
-				if v.Price != product.Price {
-					wishdataIncremental.PriceIncremental = v.Price - product.Price
-					wishdataIncremental.Price = v.Price
-				}
-				break
+	for _, v := range jsonData.Data.Contest.CommerceProductInfo.Variations {
+		if v.Price > 0 {
+			if v.Price != product.Price {
+				wishdataIncremental.PriceIncremental = v.Price - product.Price
+				wishdataIncremental.Price = v.Price
 			}
-		}
-
-		if wishdataIncremental.NumBoughtIncremental > 0 ||
-			wishdataIncremental.NumCollectionIncremental > 0 {
-			wishdataIncremental.Created = time.Now()
-			wishdataIncremental.Updated = time.Now()
-			wishdataIncremental.NumBought = jsonData.Data.Contest.NumBought
-			wishdataIncremental.NumCollection = jsonData.Data.Contest.NumEntered
-			wishdataIncremental.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
-			wishdataIncremental.ProductId = util.FNV(jsonData.Data.Contest.ID)
-
-			_, err := ini.AppWish.Insert(&wishdataIncremental)
-
-			if err != nil {
-				log.WithFields(logrus.Fields{
-					"productCrawlerController.go": "272",
-				}).Error(err)
-			}
+			break
 		}
 	}
 
+	if wishdataIncremental.NumBoughtIncremental <= 0 &&
+		wishdataIncremental.NumCollectionIncremental <= 0 {
+		return
+	}
+
+	wishdataIncremental.Created = time.Now()
+	wishdataIncremental.Updated = time.Now()
+	wishdataIncremental.NumBought = jsonData.Data.Contest.NumBought
+	wishdataIncremental.NumCollection = jsonData.Data.Contest.NumEntered
+	wishdataIncremental.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
+	wishdataIncremental.ProductId = util.FNV(jsonData.Data.Contest.ID)
+
+	_, err := ini.AppWish.Insert(&wishdataIncremental)
+
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "272",
+		}).Error(err)
+	}
+}
+
+func updateProduct(jsonData model.WishOrginalData, product model.TProduct) {
 	product.Updated = time.Now()
 	if product.NumBought != jsonData.Data.Contest.NumBought ||
 		product.NumEntered != jsonData.Data.Contest.NumEntered ||
@@ -262,20 +281,12 @@ func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProd
 
 		configProduct(jsonData, &product)
 
-		if _, err := ini.AppWish.Id(product.Id).Cols(
-			"retail_price",
-			"price",
-			"shipping",
-			"num_bought",
-			"num_entered",
-			"updated",
-			"rating_count").Update(&product); err != nil {
+		if _, err := ini.AppWish.Id(product.Id).Update(&product); err != nil {
 			log.WithFields(logrus.Fields{
 				"productCrawlerController.go": "294",
 			}).Error(err)
 		}
 	}
-
 }
 
 func configProduct(jsonData model.WishOrginalData, product *model.TProduct) {
@@ -347,21 +358,21 @@ func nocacheWishId() (datas []string) {
 	result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, size*page)
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "344",
+			"productCrawlerController.go": "361",
 		}).Error(err)
 	}
 	if len(result) <= 0 {
 		pageChan <- 0
 		if _, err = ini.RedisClient.HSet("load_page", "page", 1).Result(); err != nil {
 			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "351",
+				"productCrawlerController.go": "368",
 			}).Error(err)
 		}
 		result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, 0)
 
 		if err != nil {
 			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "358",
+				"productCrawlerController.go": "375",
 			}).Error(err)
 		}
 	} else {
