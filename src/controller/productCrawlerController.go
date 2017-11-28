@@ -5,19 +5,19 @@ import (
 	"crawler/src/ini"
 	"crawler/src/model"
 	"crawler/src/util"
+	"os"
+	"strconv"
 
-	"go.uber.org/zap"
-
+	"github.com/Sirupsen/logrus"
 	"github.com/jinzhu/now"
 	"github.com/labstack/echo"
 
 	"bytes"
+	"compress/gzip"
 	"compress/zlib"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +33,17 @@ var (
 	pageChan          chan int
 )
 
+var log = logrus.New()
+
+func init() {
+	file, err := os.OpenFile("err.log", os.O_CREATE|os.O_WRONLY, 0666)
+	if err == nil {
+		log.Out = file
+	} else {
+		log.Info("Failed to log to file, using default stderr")
+	}
+}
+
 type ProductCrawlerController struct{}
 
 func (this ProductCrawlerController) RegisterRoute(g *echo.Group) {
@@ -43,20 +54,22 @@ func (this ProductCrawlerController) RegisterRoute(g *echo.Group) {
 func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 	var JSONData WishIdJson
 	JSONData.Code = 200
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
 
 	if requestCount >= 10 {
 		weekSalesPage := <-weekSalesPageChan
 		weekSalesPageChan <- weekSalesPage
 		_, err := ini.AppWish.Exec("update t_load_page set week_sales_page=?", weekSalesPage)
 		if err != nil {
-			logger.Error(err.Error())
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "64",
+			}).Error(err)
 		}
 		page := <-pageChan
 		_, err = ini.AppWish.Exec("update t_load_page set all_id_page=?", page)
 		if err != nil {
-			logger.Error(err.Error())
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "71",
+			}).Error(err)
 		}
 		pageChan <- page
 		requestCount = 0
@@ -84,23 +97,26 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 }
 
 func (this *ProductCrawlerController) Post(ctx echo.Context) error {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
 
-	b, err := ioutil.ReadAll(ctx.Request().Body)
+	var b []byte
+	reader, err := gzip.NewReader(ctx.Request().Body)
+	buf := bytes.NewBuffer(b)
+	buf.ReadFrom(reader)
 	if err != nil {
-		logger.Error(err.Error())
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "104",
+		}).Error(err)
+		return err
 	}
 
-	if len(b) > 0 {
+	if len(buf.Bytes()) > 0 {
 		ip := strings.Split(ctx.Request().RemoteAddr, ":")
 		if len(ip) > 0 {
 			if ip[0] != "[" {
 				fmt.Println(ip[0])
 			}
 		}
-
-		SaveProductToDBFrom(b)
+		SaveProductToDBFrom(buf.Bytes())
 	}
 
 	return ctx.String(http.StatusOK, "ok")
@@ -110,7 +126,9 @@ func Setup() {
 	loadPage := &model.TLoadPage{Id: 1}
 	_, err := ini.AppWish.Get(loadPage)
 	if err != nil {
-		panic(err)
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "127",
+		}).Error(err)
 	}
 
 	weekSalesPageChan = make(chan int, 50)
@@ -121,34 +139,36 @@ func Setup() {
 }
 
 func SaveProductToDBFrom(jsonStr []byte) {
-	logger, _ := zap.NewProduction()
 
-	defer logger.Sync()
 	var w WishProductJSON
 
 	err := json.Unmarshal(jsonStr, &w)
 	if err != nil {
-		logger.Error(err.Error())
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "145",
+		}).Error(err)
 		return
 	}
 
-	fmt.Printf("接收到数据%d条", len(w.Data))
-	//logger.Debug(fmt.Sprintf("接收到数据%条", len(w.Data)))
+	fmt.Println(time.Now())
+	fmt.Printf("接收到数据%d条\n", len(w.Data))
 
 	for _, j := range w.Data {
 
 		if j.Code != 0 || len(j.Data.Contest.ID) <= 0 {
 			continue
 		}
+		//先查redis中是否缓存了这个产品
+		//如果没有就存一个快照
 
 		id, _ := ini.RedisClient.HGet(global.SNAPSHOT_IDS, j.Data.Contest.ID).Result()
 
 		if len(id) <= 0 {
-
-			ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
 			value, err := json.Marshal(&j)
 			if err != nil {
-				logger.Error(err.Error())
+				log.WithFields(logrus.Fields{
+					"productCrawlerController.go": "169",
+				}).Error(err)
 				continue
 			}
 
@@ -157,40 +177,119 @@ func SaveProductToDBFrom(jsonStr []byte) {
 				Created: now.BeginningOfDay(),
 				WishId:  j.Data.Contest.ID,
 			}
+
 			_, err = ini.AppWish.Insert(&ps)
+			//保存成功将Key设置为1
 			if err != nil {
-				logger.Error(err.Error())
+				if strings.Contains(err.Error(), "Duplicate entry") == true {
+					ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
+				} else {
+					log.WithFields(logrus.Fields{
+						"productCrawlerController.go": "184",
+					}).Error(err)
+				}
+			} else {
+				ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
 			}
 
-			var product model.TProduct
+		}
+
+		var product model.TProduct
+		//查数据库中是否有这个产品
+		//如果有新增一条增量，更新产品数据
+		//没有就新增一条产品数据
+		if _, err := ini.AppWish.Id(util.FNV(j.Data.Contest.ID)).Get(&product); err == nil {
+			saveWishDataIncremental(j, product)
+			updateProduct(j, product)
+		} else {
 			product.Created = time.Now()
 			product.Id = util.FNV(j.Data.Contest.ID)
 			configProduct(j, &product)
 			_, err = ini.AppWish.Insert(&product)
 			if err != nil {
-				logger.Error(err.Error())
-			}
-
-		} else {
-			var product model.TProduct
-
-			if _, err := ini.AppWish.Id(util.FNV(j.Data.Contest.ID)).Get(&product); err == nil {
-				saveWishDataIncremental(j, product)
-			} else {
-				logger.Error(err.Error())
+				if strings.Contains(err.Error(), " Duplicate entry") == false {
+					log.WithFields(logrus.Fields{
+						"productCrawlerController.go": "190",
+					}).Error(err)
+				}
 			}
 		}
+
 	}
 }
 
 func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProduct) {
 
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
-
-	if len(jsonData.Data.Contest.Name) <= 0 || len(jsonData.Data.Contest.ID) <= 0 || jsonData.Code != 0 {
+	if len(jsonData.Data.Contest.Name) <= 0 ||
+		len(jsonData.Data.Contest.ID) <= 0 ||
+		jsonData.Code != 0 {
 		return
 	}
+
+	//如果这个产品更新时间距离现在超过一天，则不更新增量
+	if time.Now().YearDay()-product.Updated.YearDay() > 1 {
+		return
+	}
+
+	wishdataIncremental := model.TIncremental{}
+	if jsonData.Data.Contest.NumBought > product.NumBought {
+		wishdataIncremental.NumBoughtIncremental = jsonData.Data.Contest.NumBought - product.NumBought
+	}
+	if jsonData.Data.Contest.NumEntered != product.NumEntered {
+		wishdataIncremental.NumCollectionIncremental = jsonData.Data.Contest.NumEntered - product.NumEntered
+	}
+	if int(jsonData.Data.Contest.ProductRating.RatingCount) != product.RatingCount {
+		wishdataIncremental.RatingCountIncremental = int(jsonData.Data.Contest.ProductRating.RatingCount) - product.RatingCount
+	}
+
+	for _, v := range jsonData.Data.Contest.CommerceProductInfo.Variations {
+		if v.Price > 0 {
+			if v.Price != product.Price {
+				wishdataIncremental.PriceIncremental = v.Price - product.Price
+				wishdataIncremental.Price = v.Price
+			}
+			break
+		}
+	}
+
+	if wishdataIncremental.NumBoughtIncremental <= 0 &&
+		wishdataIncremental.NumCollectionIncremental <= 0 {
+		return
+	}
+
+	wishdataIncremental.Created = time.Now()
+	wishdataIncremental.Updated = time.Now()
+	wishdataIncremental.NumBought = jsonData.Data.Contest.NumBought
+	wishdataIncremental.NumCollection = jsonData.Data.Contest.NumEntered
+	wishdataIncremental.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
+	wishdataIncremental.ProductId = util.FNV(jsonData.Data.Contest.ID)
+
+	_, err := ini.AppWish.Insert(&wishdataIncremental)
+
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "272",
+		}).Error(err)
+	}
+}
+
+func updateProduct(jsonData model.WishOrginalData, product model.TProduct) {
+	product.Updated = time.Now()
+	if product.NumBought != jsonData.Data.Contest.NumBought ||
+		product.NumEntered != jsonData.Data.Contest.NumEntered ||
+		product.RatingCount != int(jsonData.Data.Contest.ProductRating.RatingCount) {
+
+		configProduct(jsonData, &product)
+
+		if _, err := ini.AppWish.Id(product.Id).Update(&product); err != nil {
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "294",
+			}).Error(err)
+		}
+	}
+}
+
+func configProduct(jsonData model.WishOrginalData, product *model.TProduct) {
 
 	if len(jsonData.Data.Contest.CurrentlyViewing.MessageList) > 0 {
 		currentlyViewing := 0
@@ -209,77 +308,20 @@ func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProd
 		v.Created = time.Now()
 
 		if _, err := ini.AppWish.Insert(&v); err != nil {
-			logger.Error(err.Error())
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "301",
+			}).Error(err)
 		}
 	}
 
-	wishdataIncremental := model.TIncremental{}
-	if time.Now().YearDay()-product.Updated.YearDay() <= 1 {
-		if jsonData.Data.Contest.NumBought > product.NumBought {
-			wishdataIncremental.NumBoughtIncremental = jsonData.Data.Contest.NumBought - product.NumBought
-		}
-		if jsonData.Data.Contest.NumEntered != product.NumEntered {
-			wishdataIncremental.NumCollectionIncremental = jsonData.Data.Contest.NumEntered - product.NumEntered
-		}
-		if int(jsonData.Data.Contest.ProductRating.RatingCount) != product.RatingCount {
-			wishdataIncremental.RatingCountIncremental = int(jsonData.Data.Contest.ProductRating.RatingCount) - product.RatingCount
-		}
-
-		for _, v := range jsonData.Data.Contest.CommerceProductInfo.Variations {
-			if v.Price > 0 {
-				if v.Price != product.Price {
-					wishdataIncremental.PriceIncremental = v.Price - product.Price
-					wishdataIncremental.Price = v.Price
-				}
-				break
-			}
-		}
-
-		if wishdataIncremental.NumBoughtIncremental > 0 ||
-			wishdataIncremental.NumCollectionIncremental > 0 {
-			wishdataIncremental.Created = time.Now()
-			wishdataIncremental.Updated = time.Now()
-			wishdataIncremental.NumBought = jsonData.Data.Contest.NumBought
-			wishdataIncremental.NumCollection = jsonData.Data.Contest.NumEntered
-			wishdataIncremental.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
-			wishdataIncremental.ProductId = util.FNV(jsonData.Data.Contest.ID)
-
-			_, err := ini.AppWish.Insert(&wishdataIncremental)
-
-			if err != nil {
-				logger.Error(err.Error())
-			}
-		}
-	}
-
-	product.Updated = time.Now()
-	if product.NumBought != jsonData.Data.Contest.NumBought ||
-		product.NumEntered != jsonData.Data.Contest.NumEntered ||
-		product.RatingCount != int(jsonData.Data.Contest.ProductRating.RatingCount) {
-
-		configProduct(jsonData, &product)
-
-		if _, err := ini.AppWish.Id(product.Id).Cols(
-			"retail_price",
-			"price",
-			"shipping",
-			"num_bought",
-			"num_entered",
-			"updated",
-			"rating_count").Update(&product); err != nil {
-			logger.Error(err.Error())
-		}
-	}
-
-}
-
-func configProduct(jsonData model.WishOrginalData, product *model.TProduct) {
 	product.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
 
 	var price float64
 	var retailPrice float64
 	var shipping float64
+
 	variations := jsonData.Data.Contest.CommerceProductInfo.Variations
+
 	if len(variations) > 0 {
 		retailPrice = variations[0].RetailPrice
 		price = variations[0].Price
@@ -309,24 +351,29 @@ func configProduct(jsonData model.WishOrginalData, product *model.TProduct) {
 }
 
 func nocacheWishId() (datas []string) {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
+
 	page := <-pageChan
 	var result []map[string][]byte
 	var err error
 	result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, size*page)
 	if err != nil {
-		logger.Error(err.Error())
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "361",
+		}).Error(err)
 	}
 	if len(result) <= 0 {
 		pageChan <- 0
 		if _, err = ini.RedisClient.HSet("load_page", "page", 1).Result(); err != nil {
-			logger.Error(err.Error())
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "368",
+			}).Error(err)
 		}
 		result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, 0)
 
 		if err != nil {
-			logger.Error(err.Error())
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "375",
+			}).Error(err)
 		}
 	} else {
 		pageChan <- page + 1
@@ -355,8 +402,7 @@ func wishIdBySalesGtZero() (datas []string) {
 }
 
 func wishIdByWeekSalesGtZero() (datas []string) {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
+
 	cachePage := <-weekSalesPageChan
 	var start = 0
 	var end = 0
@@ -374,7 +420,9 @@ func wishIdByWeekSalesGtZero() (datas []string) {
 		Result(); err == nil {
 		datas = ids
 	} else {
-		logger.Error(err.Error())
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "407",
+		}).Error(err)
 	}
 
 	if len(datas) <= 0 {
@@ -383,7 +431,9 @@ func wishIdByWeekSalesGtZero() (datas []string) {
 			Result(); err == nil {
 			datas = ids
 		} else {
-			logger.Error(err.Error())
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "418",
+			}).Error(err)
 		}
 
 		weekSalesPageChan <- 1

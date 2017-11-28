@@ -5,8 +5,11 @@ import (
 	"compress/gzip"
 	"crawler/src/model"
 	"crawler/src/util"
+	"os"
 
 	"go.uber.org/zap"
+
+	"github.com/Sirupsen/logrus"
 
 	"encoding/json"
 	"errors"
@@ -20,8 +23,20 @@ import (
 	"time"
 )
 
-//const Host string = "45.76.220.102:2596"
-const Host string = "localhost:2596"
+const Host string = "47.52.91.154:2596"
+
+//const Host string = "localhost:2596"
+
+var log = logrus.New()
+
+func init() {
+	file, err := os.OpenFile("logrus.log", os.O_CREATE|os.O_WRONLY, 0666)
+	if err == nil {
+		log.Out = file
+	} else {
+		log.Info("Failed to log to file, using default stderr")
+	}
+}
 
 func CrawlerProduct() {
 	if taskData, err := requestTaskData(); err == nil {
@@ -31,26 +46,28 @@ func CrawlerProduct() {
 			go sendRequest(proudcts)
 		}
 	} else {
-		fmt.Println(err)
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "49",
+		}).Error(err)
 	}
 	time.Sleep(3 * time.Second)
 	CrawlerProduct()
 }
 
 func FeedCrawler() {
-	//u := model.RegistIdWith()
-	//crawlerProduct(u)
+	u := model.RegistIdWith()
+	crawlerProduct(u)
 }
 
 func requestTaskData() (taskData TaskData, err error) {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
 
 	client := &http.Client{}
 	urlStr := fmt.Sprintf("http://%s/api/wishdata", Host)
 	req, err := http.NewRequest("GET", urlStr, nil)
 	if err != nil {
-		logger.Error(err.Error())
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "69",
+		}).Error(err)
 		return
 	}
 
@@ -88,7 +105,9 @@ func crawlerWishData(taskData TaskData) (proudcts []model.WishOrginalData) {
 				if product, err := requestProductData(id, user); err == nil {
 					proudcts = append(proudcts, product)
 				} else {
-					logger.Error(err.Error())
+					log.WithFields(logrus.Fields{
+						"productCrawler.go": "109",
+					}).Error(err)
 				}
 				wg.Done()
 			})
@@ -110,7 +129,9 @@ func sendRequest(p []model.WishOrginalData) (err error) {
 	data["data"] = p
 	body, err := json.Marshal(&data)
 	if err != nil {
-		logger.Error(err.Error())
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "133",
+		}).Error(err)
 		return err
 	}
 
@@ -120,12 +141,16 @@ func sendRequest(p []model.WishOrginalData) (err error) {
 
 	_, err = w.Write(body)
 	if err != nil {
-		logger.Error(err.Error())
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "139",
+		}).Error(err)
 		return err
 	}
 	err = w.Flush()
 	if err != nil {
-		logger.Error(err.Error())
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "152",
+		}).Error(err)
 		return err
 	}
 
@@ -134,7 +159,9 @@ func sendRequest(p []model.WishOrginalData) (err error) {
 
 	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(b.Bytes()))
 	if err != nil {
-		logger.Error(err.Error())
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "163",
+		}).Error(err)
 		return err
 	}
 
@@ -144,7 +171,9 @@ func sendRequest(p []model.WishOrginalData) (err error) {
 		defer resp.Body.Close()
 	}
 	if err != nil {
-		logger.Error(err.Error())
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "175",
+		}).Error(err)
 		return err
 	}
 	fmt.Printf("发送数据%d条", len(p))
@@ -177,7 +206,7 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", "http://www.wish.com/api/product/get", body)
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err)
 		return wishProduct, err
 	}
 	req = wheaderWish(req, user)
@@ -186,7 +215,7 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 		defer resp.Body.Close()
 	}
 	if err != nil {
-		logger.Error(err.Error())
+		log.Error(err)
 		return wishProduct, err
 	}
 	var reader io.ReadCloser
@@ -194,7 +223,9 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 	case "gzip":
 		reader, err = gzip.NewReader(resp.Body)
 		if err != nil {
-			logger.Error(err.Error())
+			log.WithFields(logrus.Fields{
+				"productCrawler.go": "227",
+			}).Error(err)
 			return wishProduct, err
 		}
 	default:
@@ -209,9 +240,13 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 
 	if resp.StatusCode != 200 {
 		if resp.StatusCode == 405 {
-			logger.Error(wishProduct.Msg)
+			log.WithFields(logrus.Fields{
+				"productCrawler.go": "244",
+			}).Error(wishProduct.Msg)
 		} else if wishProduct.Code != 12 && wishProduct.Code != 13 && wishProduct.Code != 11 {
-			logger.Error(wishProduct.Msg)
+			log.WithFields(logrus.Fields{
+				"productCrawler.go": "246",
+			}).Error(wishProduct.Msg)
 		}
 		return wishProduct, nil
 	}

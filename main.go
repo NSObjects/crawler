@@ -8,8 +8,6 @@ import (
 
 	"github.com/labstack/echo"
 
-	_ "github.com/sevenNt/echo-pprof"
-
 	"crawler/src/global"
 
 	_ "net/http/pprof"
@@ -35,4 +33,9 @@ func ServeBackGround() {
 	go global.CacheWishId()
 	go global.CacheSalesGreaterThanWishId()
 	util.LoopTimer(9, global.CacheWeekSalesGreaterThanZeroWishId)
+	util.LoopTimer(0, clearCache)
+}
+
+func clearCache() {
+	ini.RedisClient.Del(global.SNAPSHOT_IDS)
 }

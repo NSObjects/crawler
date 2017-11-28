@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -65,7 +65,7 @@ func loadFeed(page int, categoryId string, user model.TUser) error {
 	case "gzip":
 		reader, err = gzip.NewReader(resp.Body)
 		if err != nil {
-			log.Print(err)
+			log.Error(err)
 		}
 
 	default:
