@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-const size int = 250
+const size = 250
 
 var (
 	u                 [][]model.TUser
@@ -385,8 +385,8 @@ func nocacheWishId() (datas []string) {
 }
 
 func allWishId() (datas []string) {
-	if ids, err := ini.RedisClient.LRange(global.ALL_WISH_ID_CACHE, 0, 250).Result(); err == nil {
-		ini.RedisClient.LTrim(global.ALL_WISH_ID_CACHE, 250, -1)
+	if ids, err := ini.RedisClient.LRange(global.ALL_WISH_ID_CACHE, 0, size).Result(); err == nil {
+		ini.RedisClient.LTrim(global.ALL_WISH_ID_CACHE, size, -1)
 		return ids
 	}
 
@@ -394,8 +394,8 @@ func allWishId() (datas []string) {
 }
 
 func wishIdBySalesGtZero() (datas []string) {
-	if ids, err := ini.RedisClient.LRange(global.SALES_GREATER_THAN_ZERO, 0, 250).Result(); err == nil {
-		ini.RedisClient.LTrim(global.SALES_GREATER_THAN_ZERO, 250, -1)
+	if ids, err := ini.RedisClient.LRange(global.SALES_GREATER_THAN_ZERO, 0, size).Result(); err == nil {
+		ini.RedisClient.LTrim(global.SALES_GREATER_THAN_ZERO, size, -1)
 		return ids
 	}
 	return

@@ -19,9 +19,11 @@
 
 # IntelliJ IDEA IDE
 .idea
-*.log
+
 # Compiled Python files
 *.pyc
 
 # Folder view configuration files
 .DS_Store
+
+*.log
