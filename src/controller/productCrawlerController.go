@@ -190,11 +190,12 @@ func SaveProductToDBFrom(jsonStr []byte) {
 			configProduct(j, &product)
 			_, err = ini.AppWish.Insert(&product)
 			if err != nil {
-				log.WithFields(logrus.Fields{
-					"productCrawlerController.go": "190",
-				}).Error(err)
+				if strings.Contains(err.Error(), " Duplicate entry") == false {
+					log.WithFields(logrus.Fields{
+						"productCrawlerController.go": "190",
+					}).Error(err)
+				}
 			}
-
 		} else {
 			var product model.TProduct
 
