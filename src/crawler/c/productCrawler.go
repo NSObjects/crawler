@@ -50,7 +50,7 @@ func CrawlerProduct() {
 			"productCrawler.go": "49",
 		}).Error(err)
 	}
-	time.Sleep(3 * time.Second)
+	//time.Sleep(3 * time.Second)
 	CrawlerProduct()
 }
 
@@ -142,7 +142,7 @@ func sendRequest(p []model.WishOrginalData) (err error) {
 	_, err = w.Write(body)
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"productCrawler.go": "139",
+			"productCrawler.go": "145",
 		}).Error(err)
 		return err
 	}
@@ -206,7 +206,9 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", "http://www.wish.com/api/product/get", body)
 	if err != nil {
-		log.Error(err)
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "210",
+		}).Error(err)
 		return wishProduct, err
 	}
 	req = wheaderWish(req, user)
@@ -215,7 +217,9 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 		defer resp.Body.Close()
 	}
 	if err != nil {
-		log.Error(err)
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "219",
+		}).Error(err)
 		return wishProduct, err
 	}
 	var reader io.ReadCloser
@@ -235,6 +239,9 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 	buf := bytes.NewBuffer(b)
 	buf.ReadFrom(reader)
 	if err = json.Unmarshal(buf.Bytes(), &wishProduct); err != nil {
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "241",
+		}).Error(err)
 		return wishProduct, err
 	}
 
@@ -245,7 +252,7 @@ func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, 
 			}).Error(wishProduct.Msg)
 		} else if wishProduct.Code != 12 && wishProduct.Code != 13 && wishProduct.Code != 11 {
 			log.WithFields(logrus.Fields{
-				"productCrawler.go": "246",
+				"productCrawler.go": "248",
 			}).Error(wishProduct.Msg)
 		}
 		return wishProduct, nil
