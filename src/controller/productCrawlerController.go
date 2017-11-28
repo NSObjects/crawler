@@ -151,6 +151,7 @@ func SaveProductToDBFrom(jsonStr []byte) {
 		return
 	}
 
+	fmt.Println(time.Now())
 	fmt.Printf("接收到数据%d条\n", len(w.Data))
 
 	for _, j := range w.Data {
