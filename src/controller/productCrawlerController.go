@@ -16,7 +16,6 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -120,7 +119,7 @@ func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 		ip := strings.Split(ctx.Request().RemoteAddr, ":")
 		if len(ip) > 0 {
 			if ip[0] != "[" {
-				fmt.Println(ip[0])
+				util.Statistics(0, ip[0])
 			}
 		}
 		SaveProductToDBFrom(buf.Bytes())
@@ -156,9 +155,6 @@ func SaveProductToDBFrom(jsonStr []byte) {
 		}).Error(err)
 		return
 	}
-
-	fmt.Println(time.Now())
-	fmt.Printf("接收到数据%d条\n", len(w.Data))
 
 	for _, j := range w.Data {
 
