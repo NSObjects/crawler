@@ -98,7 +98,6 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 
 func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 
-	var b []byte
 	reader, err := gzip.NewReader(ctx.Request().Body)
 	if err != nil {
 		log.WithFields(logrus.Fields{
@@ -106,12 +105,13 @@ func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 		}).Error(err)
 		return err
 	}
+	var b []byte
 	buf := bytes.NewBuffer(b)
 	_, err = buf.ReadFrom(reader)
 
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "104",
+			"productCrawlerController.go": "114",
 		}).Error(err)
 		return err
 	}
