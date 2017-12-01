@@ -31,7 +31,7 @@ var levelStr = []string{
 }
 
 var (
-	logs    []log
+	//	logs    []log
 	eIP     string
 	AppName string
 )
@@ -40,7 +40,7 @@ func init() {
 	if ip, err := externalIP(); err == nil {
 		eIP = ip
 	}
-	logs = make([]log, 0)
+	//logs = make([]log, 0)
 }
 
 func Debugln(level int, args ...interface{}) {
@@ -100,13 +100,14 @@ func Println(file string, line int, errorType int, level int, args ...interface{
 		if errorType == DEBUG {
 			fmt.Println(log.Time, msg)
 		} else {
-			fmt.Println(log.Time, msg)
-			//logs = append(logs, log)
-			//if len(logs) >= 1 {
-			//	l := logs
-			//	logs = nil
-			//	go sendLog(l)
-			//}
+
+			logs := make([]log, 0)
+			logs = append(logs, log)
+			if len(logs) >= 1 {
+				l := logs
+				logs = nil
+				go sendLog(l)
+			}
 		}
 
 	}
