@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/astaxie/beego/orm"
 
 	"crawler/src/util"
 	"encoding/json"
@@ -44,14 +43,6 @@ type TMerchant struct {
 	RatingCount             int       `json:"rating_count" xorm:"not null INT(255)"`
 	DisplayPic              string    `json:"display_pic" xorm:"not null default '' VARCHAR(255)"`
 	ApprovedDate            time.Time `json:"approved_date" xorm:"index DATETIME"`
-}
-
-func (t *TMerchant) TableName() string {
-	return "t_merchant"
-}
-
-func init() {
-	orm.RegisterModel(new(TMerchant))
 }
 
 func (this *TMerchant) GetMerchantName() (wishIdJSON MerchantNameJSON, err error) {

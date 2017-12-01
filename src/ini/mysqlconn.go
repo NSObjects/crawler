@@ -2,6 +2,7 @@ package ini
 
 import (
 	"fmt"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/go-xorm/xorm"
@@ -28,7 +29,7 @@ func initEngine() (err error) {
 	AppWish, err = xorm.NewEngine("mysql", dns)
 	AppWish.SetMaxIdleConns(mysql.MaxIdle)
 	AppWish.SetMaxOpenConns(mysql.MaxConn)
-
+	AppWish.TZLocation, _ = time.LoadLocation("Asia/Shanghai")
 	//showSQL := ConfigFile.MustBool("xorm", "show_sql", false)
 	//logLevel := ConfigFile.MustInt("xorm", "log_level", 1)
 	//

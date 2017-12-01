@@ -98,13 +98,9 @@ func Println(file string, line int, errorType int, level int, args ...interface{
 		if errorType == DEBUG {
 			fmt.Println(ll.Time, msg)
 		} else {
-
 			logs := make([]log, 0)
 			logs = append(logs, ll)
-			if len(logs) >= 1 {
-
-				go sendLog(logs)
-			}
+			go sendLog(logs)
 		}
 
 	}
