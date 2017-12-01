@@ -16,13 +16,14 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 )
 
-const size = 250
+const size int = 250
 
 var (
 	u                 [][]model.TUser
@@ -97,20 +98,13 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 
 func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 
+	var b []byte
 	reader, err := gzip.NewReader(ctx.Request().Body)
+	buf := bytes.NewBuffer(b)
+	buf.ReadFrom(reader)
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"productCrawlerController.go": "104",
-		}).Error(err)
-		return err
-	}
-	var b []byte
-	buf := bytes.NewBuffer(b)
-	_, err = buf.ReadFrom(reader)
-
-	if err != nil {
-		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "114",
 		}).Error(err)
 		return err
 	}
@@ -155,6 +149,9 @@ func SaveProductToDBFrom(jsonStr []byte) {
 		}).Error(err)
 		return
 	}
+
+	fmt.Println(time.Now())
+	fmt.Printf("接收到数据%d条\n", len(w.Data))
 
 	for _, j := range w.Data {
 
@@ -388,8 +385,8 @@ func nocacheWishId() (datas []string) {
 }
 
 func allWishId() (datas []string) {
-	if ids, err := ini.RedisClient.LRange(global.ALL_WISH_ID_CACHE, 0, size).Result(); err == nil {
-		ini.RedisClient.LTrim(global.ALL_WISH_ID_CACHE, size, -1)
+	if ids, err := ini.RedisClient.LRange(global.ALL_WISH_ID_CACHE, 0, 250).Result(); err == nil {
+		ini.RedisClient.LTrim(global.ALL_WISH_ID_CACHE, 250, -1)
 		return ids
 	}
 
@@ -397,8 +394,8 @@ func allWishId() (datas []string) {
 }
 
 func wishIdBySalesGtZero() (datas []string) {
-	if ids, err := ini.RedisClient.LRange(global.SALES_GREATER_THAN_ZERO, 0, size).Result(); err == nil {
-		ini.RedisClient.LTrim(global.SALES_GREATER_THAN_ZERO, size, -1)
+	if ids, err := ini.RedisClient.LRange(global.SALES_GREATER_THAN_ZERO, 0, 250).Result(); err == nil {
+		ini.RedisClient.LTrim(global.SALES_GREATER_THAN_ZERO, 250, -1)
 		return ids
 	}
 	return
