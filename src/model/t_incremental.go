@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/astaxie/beego/orm"
+)
 
 type TIncremental struct {
 	Id                       int       `json:"id" xorm:"not null pk autoincr INT(30)"`
@@ -15,4 +19,12 @@ type TIncremental struct {
 	Updated                  time.Time `json:"updated" xorm:"DATETIME"`
 	ProductId                uint32    `json:"product_id" xorm:"not null unique(pid_created) index INT(30)"`
 	PriceIncremental         float64   `json:"price_incremental" xorm:"DECIMAL(11,2)"`
+}
+
+func (t *TIncremental) TableName() string {
+	return "t_incremental"
+}
+
+func init() {
+	orm.RegisterModel(new(TIncremental))
 }

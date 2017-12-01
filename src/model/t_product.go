@@ -2,6 +2,8 @@ package model
 
 import (
 	"time"
+
+	"github.com/astaxie/beego/orm"
 )
 
 type TProduct struct {
@@ -15,4 +17,12 @@ type TProduct struct {
 	NumEntered  int       `json:"num_entered" xorm:"not null default 0 index INT(20)"`
 	Created     time.Time `json:"created" xorm:"not null index DATETIME"`
 	Updated     time.Time `json:"updated" xorm:"not null DATETIME"`
+}
+
+func (t *TProduct) TableName() string {
+	return "t_product"
+}
+
+func init() {
+	orm.RegisterModel(new(TProduct))
 }

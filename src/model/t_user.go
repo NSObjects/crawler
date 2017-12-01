@@ -36,6 +36,14 @@ type TUser struct {
 	Gender                string `json:"gender" xorm:"VARCHAR(11)"`
 }
 
+func (t *TUser) TableName() string {
+	return "t_user"
+}
+
+func init() {
+	orm.RegisterModel(new(TUser))
+}
+
 var u [][]TUser
 
 func GetUsers() []TUser {

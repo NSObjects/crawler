@@ -100,8 +100,15 @@ func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 
 	var b []byte
 	reader, err := gzip.NewReader(ctx.Request().Body)
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "104",
+		}).Error(err)
+		return err
+	}
 	buf := bytes.NewBuffer(b)
-	buf.ReadFrom(reader)
+	_, err = buf.ReadFrom(reader)
+
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"productCrawlerController.go": "104",

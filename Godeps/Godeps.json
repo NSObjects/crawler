@@ -4,6 +4,16 @@
 	"GodepVersion": "v79",
 	"Deps": [
 		{
+			"ImportPath": "github.com/Sirupsen/logrus",
+			"Comment": "v0.11.5-12-g10f801e",
+			"Rev": "10f801ebc38b33738c9d17d50860f484a0988ff5"
+		},
+		{
+			"ImportPath": "github.com/astaxie/beego/orm",
+			"Comment": "v1.9.0-4-g3162da1",
+			"Rev": "3162da131da68f38e85765781c9d1cc419963e67"
+		},
+		{
 			"ImportPath": "github.com/go-ini/ini",
 			"Comment": "v1.30.3",
 			"Rev": "f280b3ba517bf5fc98922624f21fb0e7a92adaec"
@@ -55,6 +65,11 @@
 			"ImportPath": "github.com/mattn/go-isatty",
 			"Comment": "v0.0.3-1-ga5cdd64",
 			"Rev": "a5cdd64afdee435007ee3e9f6ed4684af949d568"
+		},
+		{
+			"ImportPath": "github.com/satori/go.uuid",
+			"Comment": "v1.1.0-8-g5bf94b6",
+			"Rev": "5bf94b69c6b68ee1b541973bb8e1144db23a194b"
 		},
 		{
 			"ImportPath": "github.com/valyala/bytebufferpool",

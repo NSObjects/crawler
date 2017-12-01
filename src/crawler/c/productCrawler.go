@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-const Host string = "47.52.91.154:2596"
+const Host string = "45.76.220.102:2596"
 
 //const Host string = "localhost:2596"
 
