@@ -18,11 +18,9 @@ func main() {
 	controller.Setup()
 	e := echo.New()
 
-	util.Wrap(e)
 	g := e.Group("/api")
-
 	router.RegisterRoutes(g)
-	e.Logger.Fatal(e.Start(":2596"))
+	e.Logger.Fatal(e.Start(":2597"))
 }
 
 func init() {

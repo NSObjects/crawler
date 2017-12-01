@@ -7,8 +7,6 @@ import (
 	"crawler/src/util"
 	"os"
 
-	"go.uber.org/zap"
-
 	"github.com/Sirupsen/logrus"
 
 	"encoding/json"
@@ -23,7 +21,7 @@ import (
 	"time"
 )
 
-const Host string = "45.76.220.102:2596"
+const Host string = "45.76.220.102:2597"
 
 //const Host string = "localhost:2596"
 
@@ -50,7 +48,7 @@ func CrawlerProduct() {
 			"productCrawler.go": "49",
 		}).Error(err)
 	}
-	//time.Sleep(3 * time.Second)
+
 	CrawlerProduct()
 }
 
@@ -91,8 +89,7 @@ func requestTaskData() (taskData TaskData, err error) {
 }
 
 func crawlerWishData(taskData TaskData) (proudcts []model.WishOrginalData) {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
+
 	var wg sync.WaitGroup
 	p := util.New(30)
 	for _, wishId := range taskData.WishIds {
@@ -122,8 +119,7 @@ func crawlerWishData(taskData TaskData) (proudcts []model.WishOrginalData) {
 }
 
 func sendRequest(p []model.WishOrginalData) (err error) {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
+
 	data := make(map[string]interface{})
 
 	data["data"] = p
@@ -198,8 +194,7 @@ func requestProductData(wishID string, user model.TUser) (wishPorduct model.Wish
 }
 
 func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, e error) {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
+
 	var wishProduct model.WishOrginalData
 
 	body := wbodyWish(wishID, user)
