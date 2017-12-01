@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 
@@ -27,6 +28,11 @@ func init() {
 	} else {
 		log.Info("Failed to log to file, using default stderr")
 	}
+	local, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		fmt.Println(err)
+	}
+	time.Local = local
 }
 
 /*

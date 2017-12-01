@@ -2,6 +2,7 @@ package model
 
 import (
 	"crawler/src/ini"
+	"fmt"
 	"os"
 
 	"github.com/Sirupsen/logrus"
@@ -31,6 +32,11 @@ func init() {
 	} else {
 		log.Info("Failed to log to file, using default stderr")
 	}
+	local, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		fmt.Println(err)
+	}
+	time.Local = local
 }
 
 type TMerchant struct {

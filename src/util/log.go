@@ -14,6 +14,14 @@ import (
 	"time"
 )
 
+func init() {
+	local, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		fmt.Println(err)
+	}
+	time.Local = local
+}
+
 const (
 	ERROR = iota
 	WARNING
