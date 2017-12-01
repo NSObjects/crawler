@@ -31,7 +31,6 @@ var levelStr = []string{
 }
 
 var (
-	//	logs    []log
 	eIP     string
 	AppName string
 )
@@ -40,7 +39,6 @@ func init() {
 	if ip, err := externalIP(); err == nil {
 		eIP = ip
 	}
-	//logs = make([]log, 0)
 }
 
 func Debugln(level int, args ...interface{}) {
@@ -89,36 +87,28 @@ func Println(file string, line int, errorType int, level int, args ...interface{
 	if level > 3 {
 		SendLog(msg, errorType)
 	} else {
-		log := log{Message: msg, Ip: eIP}
+		ll := log{Message: msg, Ip: eIP}
 		t := time.Now()
-		log.Time = fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d:%02d\n",
+		ll.Time = fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d:%02d\n",
 			t.Year(), t.Month(), t.Day(),
 			t.Hour(), t.Minute(), t.Second(), t.Nanosecond())
-		log.Type = etype
-		log.AppName = AppName
+		ll.Type = etype
+		ll.AppName = AppName
 
 		if errorType == DEBUG {
-			fmt.Println(log.Time, msg)
+			fmt.Println(ll.Time, msg)
 		} else {
 
 			logs := make([]log, 0)
-			logs = append(logs, log)
+			logs = append(logs, ll)
 			if len(logs) >= 1 {
-				l := logs
-				logs = nil
-				go sendLog(l)
+
+				go sendLog(logs)
 			}
 		}
 
 	}
 
-}
-
-func ClearLog() {
-	if len(logs) > 0 {
-		sendLog(logs)
-	}
-	logs = nil
 }
 
 func SendDingdingMsg(msg dingDingMsg, errorType int) {
