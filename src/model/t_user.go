@@ -41,6 +41,7 @@ func (t *TUser) TableName() string {
 }
 
 func init() {
+	u = make([][]TUser, 0)
 	orm.RegisterModel(new(TUser))
 }
 
