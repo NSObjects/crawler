@@ -1,42 +1,34 @@
-package controller
+package c
 
 import (
-	"crawler/src/global"
-	"crawler/src/ini"
+	"bytes"
+	"compress/gzip"
 	"crawler/src/model"
 	"crawler/src/util"
 	"os"
-	"strconv"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/jinzhu/now"
-	"github.com/labstack/echo"
 
-	"bytes"
-	"compress/gzip"
-	"compress/zlib"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"math/rand"
 	"net/http"
-	"strings"
+	"net/url"
 	"sync"
 	"time"
 )
 
-const size int = 250
+const Host = "45.76.220.102:2597"
 
-var (
-	u                 [][]model.TUser
-	requestCount      int
-	mutex             sync.Mutex
-	weekSalesPageChan chan int
-	pageChan          chan int
-)
+//const Host string = "localhost:2596"
 
 var log = logrus.New()
 
 func init() {
-	file, err := os.OpenFile("err.log", os.O_CREATE|os.O_WRONLY, 0666)
+	file, err := os.OpenFile("logrus.log", os.O_CREATE|os.O_WRONLY, 0666)
 	if err == nil {
 		log.Out = file
 	} else {
@@ -44,427 +36,288 @@ func init() {
 	}
 }
 
-type ProductCrawlerController struct{}
+func CrawlerProduct() {
+	if taskData, err := requestTaskData(); err == nil {
+		proudcts := crawlerWishData(taskData)
 
-func (this ProductCrawlerController) RegisterRoute(g *echo.Group) {
-	g.GET("/wishdata", this.GetWishId)
-	g.POST("/wishdata", this.Post)
-}
-
-func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
-	var JSONData WishIdJson
-	JSONData.Code = 200
-
-	if requestCount >= 10 {
-		weekSalesPage := <-weekSalesPageChan
-		weekSalesPageChan <- weekSalesPage
-		_, err := ini.AppWish.Exec("update t_load_page set week_sales_page=?", weekSalesPage)
-		if err != nil {
-			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "64",
-			}).Error(err)
+		if len(proudcts) > 0 {
+			go sendRequest(proudcts)
 		}
-		page := <-pageChan
-		_, err = ini.AppWish.Exec("update t_load_page set all_id_page=?", page)
-		if err != nil {
-			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "71",
-			}).Error(err)
-		}
-		pageChan <- page
-		requestCount = 0
-	}
-
-	var datas []string
-	mutex.Lock()
-	if requestCount >= 5 && global.WeekSalesCacheLenght > 0 {
-		datas = wishIdByWeekSalesGtZero()
-	} else if requestCount >= 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
-		datas = wishIdBySalesGtZero()
-	} else if global.AllWishIdCacheLenght > 0 {
-		datas = allWishId()
 	} else {
-		datas = nocacheWishId()
-	}
-	mutex.Unlock()
-	requestCount++
-	if len(datas) > 0 {
-		JSONData.Data = datas
-		JSONData.Users = model.GetUsers()
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "49",
+		}).Error(err)
 	}
 
-	return ctx.JSON(http.StatusOK, JSONData)
+	CrawlerProduct()
 }
 
-func (this *ProductCrawlerController) Post(ctx echo.Context) error {
+func FeedCrawler() {
+	u := model.RegistIdWith()
+	crawlerProduct(u)
+}
 
-	var b []byte
-	reader, err := gzip.NewReader(ctx.Request().Body)
-	buf := bytes.NewBuffer(b)
-	buf.ReadFrom(reader)
+func requestTaskData() (taskData TaskData, err error) {
+
+	client := &http.Client{}
+	urlStr := fmt.Sprintf("http://%s/api/wishdata", Host)
+	req, err := http.NewRequest("GET", urlStr, nil)
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "104",
+			"productCrawler.go": "69",
+		}).Error(err)
+		return
+	}
+
+	resp, err := client.Do(req)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	if err != nil {
+		return taskData, err
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return taskData, err
+	}
+
+	if err := json.Unmarshal(respBody, &taskData); err != nil {
+		return taskData, err
+	}
+
+	return taskData, nil
+}
+
+func crawlerWishData(taskData TaskData) (proudcts []model.WishOrginalData) {
+
+	var wg sync.WaitGroup
+	p := util.New(30)
+	for _, wishId := range taskData.WishIds {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		u := taskData.Users[r.Intn(len(taskData.Users))]
+
+		wg.Add(1)
+		go func(id string, user model.TUser) {
+			p.Run(func() {
+				if product, err := requestProductData(id, user); err == nil {
+					proudcts = append(proudcts, product)
+				} else {
+					log.WithFields(logrus.Fields{
+						"productCrawler.go": "109",
+					}).Error(err)
+				}
+				wg.Done()
+			})
+
+		}(wishId, u)
+	}
+
+	wg.Wait()
+	p.Shutdown()
+
+	return
+}
+
+func sendRequest(p []model.WishOrginalData) (err error) {
+
+	data := make(map[string]interface{})
+
+	data["data"] = p
+	body, err := json.Marshal(&data)
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "133",
 		}).Error(err)
 		return err
 	}
 
-	if len(buf.Bytes()) > 0 {
-		ip := strings.Split(ctx.Request().RemoteAddr, ":")
-		if len(ip) > 0 {
-			if ip[0] != "[" {
-				fmt.Println(ip[0])
-			}
-		}
-		SaveProductToDBFrom(buf.Bytes())
-	}
+	var b bytes.Buffer
+	w := gzip.NewWriter(&b)
+	defer w.Close()
 
-	return ctx.String(http.StatusOK, "ok")
-}
-
-func Setup() {
-	loadPage := &model.TLoadPage{Id: 1}
-	_, err := ini.AppWish.Get(loadPage)
+	_, err = w.Write(body)
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "127",
+			"productCrawler.go": "145",
 		}).Error(err)
+		return err
 	}
-
-	weekSalesPageChan = make(chan int, 50)
-	weekSalesPageChan <- loadPage.WeekSalesPage
-
-	pageChan = make(chan int, 50)
-	pageChan <- loadPage.AllIdPage
-}
-
-func SaveProductToDBFrom(jsonStr []byte) {
-
-	var w WishProductJSON
-
-	err := json.Unmarshal(jsonStr, &w)
+	err = w.Flush()
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "145",
+			"productCrawler.go": "152",
 		}).Error(err)
-		return
+		return err
 	}
 
-	fmt.Println(time.Now())
-	fmt.Printf("接收到数据%d条\n", len(w.Data))
+	client := &http.Client{}
+	urlStr := fmt.Sprintf("http://%s/api/wishdata", Host)
 
-	for _, j := range w.Data {
-
-		if j.Code != 0 || len(j.Data.Contest.ID) <= 0 {
-			continue
-		}
-		//先查redis中是否缓存了这个产品
-		//如果没有就存一个快照
-
-		id, _ := ini.RedisClient.HGet(global.SNAPSHOT_IDS, j.Data.Contest.ID).Result()
-
-		if len(id) <= 0 {
-			value, err := json.Marshal(&j)
-			if err != nil {
-				log.WithFields(logrus.Fields{
-					"productCrawlerController.go": "169",
-				}).Error(err)
-				continue
-			}
-
-			ps := model.TProductSnapshot{
-				Data:    string(ZipBytes(value)),
-				Created: now.BeginningOfDay(),
-				WishId:  j.Data.Contest.ID,
-			}
-
-			_, err = ini.AppWish.Insert(&ps)
-			//保存成功将Key设置为1
-			if err != nil {
-				if strings.Contains(err.Error(), "Duplicate entry") == true {
-					ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
-				} else {
-					log.WithFields(logrus.Fields{
-						"productCrawlerController.go": "184",
-					}).Error(err)
-				}
-			} else {
-				ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
-			}
-
-		}
-
-		var product model.TProduct
-		//查数据库中是否有这个产品
-		//如果有新增一条增量，更新产品数据
-		//没有就新增一条产品数据
-		if _, err := ini.AppWish.Id(util.FNV(j.Data.Contest.ID)).Get(&product); err == nil {
-			saveWishDataIncremental(j, product)
-			updateProduct(j, product)
-		} else {
-			product.Created = time.Now()
-			product.Id = util.FNV(j.Data.Contest.ID)
-			configProduct(j, &product)
-			_, err = ini.AppWish.Insert(&product)
-			if err != nil {
-				if strings.Contains(err.Error(), " Duplicate entry") == false {
-					log.WithFields(logrus.Fields{
-						"productCrawlerController.go": "190",
-					}).Error(err)
-				}
-			}
-		}
-
-	}
-}
-
-func saveWishDataIncremental(jsonData model.WishOrginalData, product model.TProduct) {
-
-	if len(jsonData.Data.Contest.Name) <= 0 ||
-		len(jsonData.Data.Contest.ID) <= 0 ||
-		jsonData.Code != 0 {
-		return
-	}
-
-	//如果这个产品更新时间距离现在超过一天，则不更新增量
-	if time.Now().YearDay()-product.Updated.YearDay() > 1 {
-		return
-	}
-
-	wishdataIncremental := model.TIncremental{}
-	if jsonData.Data.Contest.NumBought > product.NumBought {
-		wishdataIncremental.NumBoughtIncremental = jsonData.Data.Contest.NumBought - product.NumBought
-	}
-	if jsonData.Data.Contest.NumEntered != product.NumEntered {
-		wishdataIncremental.NumCollectionIncremental = jsonData.Data.Contest.NumEntered - product.NumEntered
-	}
-	if int(jsonData.Data.Contest.ProductRating.RatingCount) != product.RatingCount {
-		wishdataIncremental.RatingCountIncremental = int(jsonData.Data.Contest.ProductRating.RatingCount) - product.RatingCount
-	}
-
-	for _, v := range jsonData.Data.Contest.CommerceProductInfo.Variations {
-		if v.Price > 0 {
-			if v.Price != product.Price {
-				wishdataIncremental.PriceIncremental = v.Price - product.Price
-				wishdataIncremental.Price = v.Price
-			}
-			break
-		}
-	}
-
-	if wishdataIncremental.NumBoughtIncremental <= 0 &&
-		wishdataIncremental.NumCollectionIncremental <= 0 {
-		return
-	}
-
-	wishdataIncremental.Created = time.Now()
-	wishdataIncremental.Updated = time.Now()
-	wishdataIncremental.NumBought = jsonData.Data.Contest.NumBought
-	wishdataIncremental.NumCollection = jsonData.Data.Contest.NumEntered
-	wishdataIncremental.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
-	wishdataIncremental.ProductId = util.FNV(jsonData.Data.Contest.ID)
-
-	_, err := ini.AppWish.Insert(&wishdataIncremental)
-
+	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(b.Bytes()))
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "272",
+			"productCrawler.go": "163",
 		}).Error(err)
-	}
-}
-
-func updateProduct(jsonData model.WishOrginalData, product model.TProduct) {
-	product.Updated = time.Now()
-	if product.NumBought != jsonData.Data.Contest.NumBought ||
-		product.NumEntered != jsonData.Data.Contest.NumEntered ||
-		product.RatingCount != int(jsonData.Data.Contest.ProductRating.RatingCount) {
-
-		configProduct(jsonData, &product)
-
-		if _, err := ini.AppWish.Id(product.Id).Update(&product); err != nil {
-			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "294",
-			}).Error(err)
-		}
-	}
-}
-
-func configProduct(jsonData model.WishOrginalData, product *model.TProduct) {
-
-	if len(jsonData.Data.Contest.CurrentlyViewing.MessageList) > 0 {
-		currentlyViewing := 0
-		for _, v := range jsonData.Data.Contest.CurrentlyViewing.MessageList {
-			for _, d := range strings.Split(v, " ") {
-				if s, err := strconv.Atoi(d); err == nil {
-					currentlyViewing += s
-				}
-			}
-		}
-		v := model.TViewings{
-			Count:     currentlyViewing,
-			ProductId: util.FNV(jsonData.Data.Contest.ID),
-		}
-
-		v.Created = time.Now()
-
-		if _, err := ini.AppWish.Insert(&v); err != nil {
-			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "301",
-			}).Error(err)
-		}
+		return err
 	}
 
-	product.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
-
-	var price float64
-	var retailPrice float64
-	var shipping float64
-
-	variations := jsonData.Data.Contest.CommerceProductInfo.Variations
-
-	if len(variations) > 0 {
-		retailPrice = variations[0].RetailPrice
-		price = variations[0].Price
-		shipping = variations[0].Shipping
-		for _, v := range jsonData.Data.Contest.CommerceProductInfo.Variations {
-			if v.RetailPrice < retailPrice {
-				retailPrice = v.RetailPrice
-			}
-
-			if v.Shipping < shipping {
-				shipping = v.Shipping
-			}
-
-			if v.Price < price {
-				price = v.Price
-			}
-		}
+	req.Header.Add("Content-Type", "application/json; charset=utf-8")
+	resp, err := client.Do(req)
+	if resp != nil {
+		defer resp.Body.Close()
 	}
-
-	product.Price = price
-	product.RetailPrice = retailPrice
-	product.Shipping = shipping
-	product.WishId = jsonData.Data.Contest.ID
-	product.NumEntered = jsonData.Data.Contest.NumEntered
-	product.NumBought = jsonData.Data.Contest.NumBought
-	product.Updated = time.Now()
-}
-
-func nocacheWishId() (datas []string) {
-
-	page := <-pageChan
-	var result []map[string][]byte
-	var err error
-	result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, size*page)
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "361",
+			"productCrawler.go": "175",
 		}).Error(err)
+		return err
 	}
-	if len(result) <= 0 {
-		pageChan <- 0
-		if _, err = ini.RedisClient.HSet("load_page", "page", 1).Result(); err != nil {
-			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "368",
-			}).Error(err)
-		}
-		result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, 0)
+	fmt.Printf("发送数据%d条", len(p))
+	//logger.Debug(fmt.Sprintf("发送数据%条", len(p)))
+	return nil
+}
 
+func requestProductData(wishID string, user model.TUser) (wishPorduct model.WishOrginalData, err error) {
+	if len(wishID) == 0 {
+		return wishPorduct, errors.New("wish id error")
+	}
+
+	if product, err := loadProductWith(wishID, user); err == nil {
+
+		if len(product.Data.Contest.Name) > 0 &&
+			len(product.Data.Contest.ID) > 0 {
+			wishPorduct = product
+		}
+	}
+
+	return wishPorduct, nil
+}
+
+func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, e error) {
+
+	var wishProduct model.WishOrginalData
+
+	body := wbodyWish(wishID, user)
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", "http://www.wish.com/api/product/get", body)
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "210",
+		}).Error(err)
+		return wishProduct, err
+	}
+	req = wheaderWish(req, user)
+	resp, err := client.Do(req)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"productCrawler.go": "219",
+		}).Error(err)
+		return wishProduct, err
+	}
+	var reader io.ReadCloser
+	switch resp.Header.Get("Content-Encoding") {
+	case "gzip":
+		reader, err = gzip.NewReader(resp.Body)
 		if err != nil {
 			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "375",
+				"productCrawler.go": "227",
 			}).Error(err)
+			return wishProduct, err
 		}
-	} else {
-		pageChan <- page + 1
+	default:
+		reader = resp.Body
 	}
-	for _, id := range result {
-		datas = append(datas, string(id["wish_id"]))
-	}
-	return datas
-}
-
-func allWishId() (datas []string) {
-	if ids, err := ini.RedisClient.LRange(global.ALL_WISH_ID_CACHE, 0, 250).Result(); err == nil {
-		ini.RedisClient.LTrim(global.ALL_WISH_ID_CACHE, 250, -1)
-		return ids
-	}
-
-	return
-}
-
-func wishIdBySalesGtZero() (datas []string) {
-	if ids, err := ini.RedisClient.LRange(global.SALES_GREATER_THAN_ZERO, 0, 250).Result(); err == nil {
-		ini.RedisClient.LTrim(global.SALES_GREATER_THAN_ZERO, 250, -1)
-		return ids
-	}
-	return
-}
-
-func wishIdByWeekSalesGtZero() (datas []string) {
-
-	cachePage := <-weekSalesPageChan
-	var start = 0
-	var end = 0
-	if cachePage*size+size > global.WeekSalesCacheLenght {
-		start = cachePage * size
-		end = global.WeekSalesCacheLenght - cachePage*size
-		global.WeekSalesCacheLenght = 0
-	} else {
-		start = cachePage * size
-		end = cachePage*size + size
-	}
-
-	if ids, err := ini.RedisClient.
-		LRange(global.WEEK_SALES_GREATER_THAN_ZERO, int64(start), int64(end)).
-		Result(); err == nil {
-		datas = ids
-	} else {
+	var b []byte
+	buf := bytes.NewBuffer(b)
+	buf.ReadFrom(reader)
+	if err = json.Unmarshal(buf.Bytes(), &wishProduct); err != nil {
 		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "407",
+			"productCrawler.go": "241",
 		}).Error(err)
+		return wishProduct, err
 	}
 
-	if len(datas) <= 0 {
-		if ids, err := ini.RedisClient.
-			LRange(global.WEEK_SALES_GREATER_THAN_ZERO, 0, int64(size)).
-			Result(); err == nil {
-			datas = ids
-		} else {
+	if resp.StatusCode != 200 {
+		if resp.StatusCode == 405 {
 			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "418",
-			}).Error(err)
+				"productCrawler.go": "244",
+			}).Error(wishProduct.Msg)
+		} else if wishProduct.Code != 12 && wishProduct.Code != 13 && wishProduct.Code != 11 {
+			log.WithFields(logrus.Fields{
+				"productCrawler.go": "248",
+			}).Error(wishProduct.Msg)
 		}
-
-		weekSalesPageChan <- 1
-	} else {
-		weekSalesPageChan <- cachePage + 1
+		return wishProduct, nil
 	}
-	return datas
+
+	return wishProduct, nil
 }
 
-func ZipBytes(input []byte) []byte {
-	var buf bytes.Buffer
-	compressor, err := zlib.NewWriterLevel(&buf, zlib.BestCompression)
-	if err != nil {
-		return input
-	}
-	compressor.Write(input)
-	compressor.Close()
-	return buf.Bytes()
+func wheaderWish(req *http.Request, user model.TUser) *http.Request {
+	req.Header.Add("Accept", "*/*")
+	req.Header.Add("Accept-Encoding", "gzip")
+	req.Header.Add("Accept-Language", "zh-Hans-CN;q=1, en-CN;q=0.9")
+	cookie := fmt.Sprintf("_xsrf=1; _timezone=8; _appLocale=zh-Hans-CN; sweeper_session=\"%s\"; bsid=%s", user.SweeperSession, user.Baid)
+	req.Header.Add("Cookie", cookie)
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add("User-Agent", "Wish/3.18.5 (iPhone; iOS 10.2.1; Scale/3.00)")
+	return req
 }
 
-type WishIdJson struct {
+func wbodyWish(wishId string, user model.TUser) *bytes.Buffer {
+	params := url.Values{}
+	params.Set("_capabilities[]", "11")
+	params.Set("_capabilities[]", "12")
+	params.Set("_capabilities[]", "13")
+	params.Set("_capabilities[]", "15")
+	params.Set("_capabilities[]", "2")
+	params.Set("_capabilities[]", "21")
+	params.Set("_capabilities[]", "24")
+	params.Set("_capabilities[]", "25")
+	params.Set("_capabilities[]", "28")
+	params.Set("_capabilities[]", "32")
+	params.Set("_capabilities[]", "35")
+	params.Set("_capabilities[]", "39")
+	params.Set("_capabilities[]", "4")
+	params.Set("_capabilities[]", "40")
+	params.Set("_capabilities[]", "43")
+	params.Set("_capabilities[]", "6")
+	params.Set("_capabilities[]", "7")
+	params.Set("_capabilities[]", "8")
+	params.Set("_capabilities[]", "9")
+	params.Set("_app_type", "wish")
+	params.Set("_version", "3.18.5")
+	params.Set("_xsrf", "1")
+	params.Set("app_device_model", "iPhone7,1")
+	params.Set("_client", "iosapp")
+	params.Set("advertiser_id", user.AdvertiserId)
+	params.Set("app_device_id", user.AppDeviceID)
+	params.Set("cid", wishId)
+	body := bytes.NewBufferString(params.Encode())
+	return body
+}
+
+func removeDuplicatesUnordered(elements []string) []string {
+	encountered := map[string]bool{}
+	for v := range elements {
+		encountered[elements[v]] = true
+	}
+	result := []string{}
+	for key := range encountered {
+		result = append(result, key)
+	}
+	return result
+}
+
+type TaskData struct {
 	Message string        `json:"message"`
 	Code    int           `json:"code"`
-	Data    []string      `json:"data"`
+	WishIds []string      `json:"data"`
 	Users   []model.TUser `json:"users"`
-	Page    int64         `json:"page"`
-}
-
-type WishProductJSON struct {
-	Data []model.WishOrginalData `json:"data"`
-	Ip   string
+	Page    int           `json:"page"`
 }
 
 type WishProduct struct {
@@ -482,11 +335,11 @@ type WishProduct struct {
 	WishId                 string    `json:"wish_id"`
 	Color                  string    `json:"color"`
 	Size                   string    `json:"size"`
-	Price                  float64   `json:"price"`
-	RetailPrice            float64   `json:"retail_price"`
+	Price                  float32   `json:"price"`
+	RetailPrice            float32   `json:"retail_price"`
 	MerchantTags           string    `json:"merchant_tags"`
 	Tags                   string    `json:"tags"`
-	Shipping               float64   `json:"shipping"`
+	Shipping               float32   `json:"shipping"`
 	NumBought              int       `json:"num_bought"`
 	MaxShippingTime        int       `json:"max_shipping_time"`
 	MinShippingTime        int       `json:"min_shipping_time"`
@@ -498,4 +351,61 @@ type WishProduct struct {
 	CurrentlyViewing       int       `json:"currently_viewing"`
 	Time                   int64     `json:"time"`
 	TrueTagIds             []string  `json:"true_tag_ids"`
+}
+
+type UserHeap []model.TUser
+
+func (h UserHeap) Len() int           { return len(h) }
+func (h UserHeap) Less(i, j int) bool { return h[i].Id < h[j].Id }
+func (h UserHeap) Swap(i, j int)      { h[i].Id, h[j].Id = h[j].Id, h[i].Id }
+func (h *UserHeap) Push(x interface{}) {
+	*h = append(*h, x.(model.TUser))
+}
+
+func (h *UserHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
+}
+
+func login(user model.TUser) (model.TUser, error) {
+	// Wish登录 (POST http://www.wish.com/api/email-login)
+	params := url.Values{}
+	params.Set("email", user.Email)
+	params.Set("password", user.Password)
+	params.Set("_experiments", "")
+	params.Set("_buckets", "")
+	body := bytes.NewBufferString(params.Encode())
+	// Create client
+	client := &http.Client{}
+	// Create request
+	req, err := http.NewRequest("POST", "http://www.wish.com/api/email-login", body)
+	// Headers
+	req.Header.Add("Cookie", "_xsrf=C8B10FD5747D3B6B413A0F3F11422F55; IR_PI=1502072051896-f8zqdqa3znn; IR_EV=1502072051896|4953|0|1502072051896; __utmt=1; __utma=96128154.140752188.1502072052.1502072052.1502072052.1; __utmb=96128154.1.10.1502072052; __utmc=96128154; __utmz=96128154.1502072052.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); bsid=87e3bd6849794aaabb003290ae30cc6f; sweeper_uuid=77190f1ea92c4741aa11fb5dc4e07c79")
+	req.Header.Add("Accept", "application/json, text/javascript, */*; q=0.01")
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+	req.Header.Add("X-XSRFToken", "C8B10FD5747D3B6B413A0F3F11422F55")
+	req.Header.Add("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36")
+	req.Header.Add("Accept-Language", "zh-CN,zh;q=0.8,en;q=0.6,zh-TW;q=0.4")
+	req.Header.Add("X-Requested-With", "XMLHttpRequest")
+	resp, err := client.Do(req)
+	if err != nil {
+		return user, err
+	}
+	// Read Response Body
+	respBody, _ := ioutil.ReadAll(resp.Body)
+	for _, cookie := range resp.Cookies() {
+		switch cookie.Name {
+		case "bsid":
+			user.Baid = cookie.Value
+		case "sweeper_session":
+			user.SweeperSession = cookie.Value
+		}
+	}
+	if resp.StatusCode != 200 {
+		return user, errors.New(string(respBody))
+	}
+	return user, nil
 }
