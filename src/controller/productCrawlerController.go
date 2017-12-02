@@ -84,7 +84,7 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 
 	var datas []string
 	mutex.Lock()
-	if requestCount >= 5 && global.WeekSalesCacheLenght > 0 {
+	if requestCount >= 3 && requestCount < 8 && global.WeekSalesCacheLenght > 0 {
 		fmt.Println("wishIdByWeekSalesGtZero")
 		datas = wishIdByWeekSalesGtZero()
 	} else if requestCount >= 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
