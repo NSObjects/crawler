@@ -69,7 +69,6 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 
 			if _, err := ini.AppWish.Id(productId).Get(&product); err == nil {
 				if product.WishId != "" {
-					log.Error(product.WishId)
 					if err := ini.RedisClient.RPush(WEEK_SALES_GREATER_THAN_ZERO, product.WishId).Err(); err != nil {
 						log.WithFields(logrus.Fields{
 							"backgroundServer.go": "56",
