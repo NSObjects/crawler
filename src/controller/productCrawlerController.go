@@ -85,12 +85,16 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 	var datas []string
 	mutex.Lock()
 	if requestCount >= 5 && global.WeekSalesCacheLenght > 0 {
+		fmt.Println("wishIdByWeekSalesGtZero")
 		datas = wishIdByWeekSalesGtZero()
 	} else if requestCount >= 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
+		fmt.Println("wishIdBySalesGtZero")
 		datas = wishIdBySalesGtZero()
 	} else if global.AllWishIdCacheLenght > 0 {
+		fmt.Println("allWishId")
 		datas = allWishId()
 	} else {
+		fmt.Println("nocacheWishId")
 		datas = nocacheWishId()
 	}
 	mutex.Unlock()
@@ -109,9 +113,10 @@ func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 	reader, err := gzip.NewReader(ctx.Request().Body)
 	buf := bytes.NewBuffer(b)
 	buf.ReadFrom(reader)
+
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "104",
+			"productCrawlerController.go": "115",
 		}).Error(err)
 		return err
 	}
@@ -152,7 +157,7 @@ func SaveProductToDBFrom(jsonStr []byte) {
 	err := json.Unmarshal(jsonStr, &w)
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "145",
+			"productCrawlerController.go": "156",
 		}).Error(err)
 		return
 	}
@@ -162,38 +167,39 @@ func SaveProductToDBFrom(jsonStr []byte) {
 		if j.Code != 0 || len(j.Data.Contest.ID) <= 0 {
 			continue
 		}
+
 		//先查redis中是否缓存了这个产品
 		//如果没有就存一个快照
 
 		id, _ := ini.RedisClient.HGet(global.SNAPSHOT_IDS, j.Data.Contest.ID).Result()
 
 		if len(id) <= 0 && j.Data.Contest.NumBought > 100 {
-			value, err := json.Marshal(&j)
-			if err != nil {
+
+			if value, err := json.Marshal(&j); err == nil {
+				ps := model.TProductSnapshot{
+					Data:    string(ZipBytes(value)),
+					Created: now.BeginningOfDay(),
+					WishId:  j.Data.Contest.ID,
+				}
+
+				_, err = ini.AppWish.Insert(&ps)
+				//保存成功将Key设置为1
+				if err != nil {
+					if strings.Contains(err.Error(), "Duplicate entry") == true {
+						ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
+					} else {
+						log.WithFields(logrus.Fields{
+							"productCrawlerController.go": "184",
+						}).Error(err)
+					}
+				} else {
+					ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
+				}
+
+			} else {
 				log.WithFields(logrus.Fields{
 					"productCrawlerController.go": "169",
 				}).Error(err)
-				continue
-			}
-
-			ps := model.TProductSnapshot{
-				Data:    string(ZipBytes(value)),
-				Created: now.BeginningOfDay(),
-				WishId:  j.Data.Contest.ID,
-			}
-
-			_, err = ini.AppWish.Insert(&ps)
-			//保存成功将Key设置为1
-			if err != nil {
-				if strings.Contains(err.Error(), "Duplicate entry") == true {
-					ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
-				} else {
-					log.WithFields(logrus.Fields{
-						"productCrawlerController.go": "184",
-					}).Error(err)
-				}
-			} else {
-				ini.RedisClient.HSet(global.SNAPSHOT_IDS, j.Data.Contest.ID, "1")
 			}
 
 		}

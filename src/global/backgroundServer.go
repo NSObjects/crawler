@@ -59,11 +59,17 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 		return
 	}
 
-	for _, r := range results {
+	for index, r := range results {
+
+		if index > 1000 {
+			WeekSalesCacheLenght = len(results)
+		}
 		if productId, err := strconv.Atoi(string(r["product_id"])); err == nil {
 			var product model.TProduct
+
 			if _, err := ini.AppWish.Id(productId).Get(&product); err == nil {
 				if product.WishId != "" {
+					log.Error(product.WishId)
 					if err := ini.RedisClient.RPush(WEEK_SALES_GREATER_THAN_ZERO, product.WishId).Err(); err != nil {
 						log.WithFields(logrus.Fields{
 							"backgroundServer.go": "56",
@@ -75,14 +81,13 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 					"backgroundServer.go": "56",
 				}).Error(err)
 			}
+
 		} else {
 			log.WithFields(logrus.Fields{
 				"backgroundServer.go": "56",
 			}).Error(err)
 		}
 	}
-
-	WeekSalesCacheLenght = len(results)
 
 }
 
