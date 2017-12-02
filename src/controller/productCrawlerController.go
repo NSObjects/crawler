@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-const size int = 250
+const size = 250
 
 var (
 	u                 [][]model.TUser
@@ -68,14 +68,14 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 		_, err := ini.AppWish.Exec("update t_load_page set week_sales_page=?", weekSalesPage)
 		if err != nil {
 			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "64",
+				"productCrawlerController.go": "71",
 			}).Error(err)
 		}
 		page := <-pageChan
 		_, err = ini.AppWish.Exec("update t_load_page set all_id_page=?", page)
 		if err != nil {
 			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "71",
+				"productCrawlerController.go": "78",
 			}).Error(err)
 		}
 		pageChan <- page
@@ -134,7 +134,7 @@ func Setup() {
 	_, err := ini.AppWish.Get(loadPage)
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "127",
+			"productCrawlerController.go": "137",
 		}).Error(err)
 	}
 
@@ -156,9 +156,6 @@ func SaveProductToDBFrom(jsonStr []byte) {
 		}).Error(err)
 		return
 	}
-
-	fmt.Println(time.Now())
-	fmt.Printf("接收到数据%d条\n", len(w.Data))
 
 	for _, j := range w.Data {
 

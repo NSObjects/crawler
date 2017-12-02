@@ -51,7 +51,11 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 		" having sum(product_id)>0)", start, end)
 
 	if err != nil || len(results) <= 0 {
-		log.Error(err)
+		if err != nil {
+			log.WithFields(logrus.Fields{
+				"backgroundServer.go": "56",
+			}).Error(err)
+		}
 		return
 	}
 
@@ -61,14 +65,20 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 			if _, err := ini.AppWish.Id(productId).Get(&product); err == nil {
 				if product.WishId != "" {
 					if err := ini.RedisClient.RPush(WEEK_SALES_GREATER_THAN_ZERO, product.WishId).Err(); err != nil {
-						fmt.Println(err)
+						log.WithFields(logrus.Fields{
+							"backgroundServer.go": "56",
+						}).Error(err)
 					}
 				}
 			} else {
-				log.Error(err)
+				log.WithFields(logrus.Fields{
+					"backgroundServer.go": "56",
+				}).Error(err)
 			}
 		} else {
-			log.Error(err)
+			log.WithFields(logrus.Fields{
+				"backgroundServer.go": "56",
+			}).Error(err)
 		}
 	}
 
