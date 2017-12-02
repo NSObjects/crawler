@@ -170,7 +170,7 @@ func SaveProductToDBFrom(jsonStr []byte) {
 
 		id, _ := ini.RedisClient.HGet(global.SNAPSHOT_IDS, j.Data.Contest.ID).Result()
 
-		if len(id) <= 0 && j.Data.Contest.NumBought > 100{
+		if len(id) <= 0 && j.Data.Contest.NumBought > 100 {
 			value, err := json.Marshal(&j)
 			if err != nil {
 				log.WithFields(logrus.Fields{
@@ -362,7 +362,7 @@ func nocacheWishId() (datas []string) {
 	page := <-pageChan
 	var result []map[string][]byte
 	var err error
-	result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, size*page)
+	result, err = ini.AppWish.Query("select wish_id from t_wish_id limit ? offset ?", size, size*page)
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"productCrawlerController.go": "361",
@@ -375,7 +375,7 @@ func nocacheWishId() (datas []string) {
 				"productCrawlerController.go": "368",
 			}).Error(err)
 		}
-		result, err = ini.AppWish.Query("select wish_id from wish_id limit ? offset ?", size, 0)
+		result, err = ini.AppWish.Query("select wish_id from t_wish_id limit ? offset ?", size, 0)
 
 		if err != nil {
 			log.WithFields(logrus.Fields{
