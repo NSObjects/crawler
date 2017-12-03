@@ -10,6 +10,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
+	"github.com/astaxie/beego/orm"
 	"github.com/jinzhu/now"
 )
 
@@ -39,18 +40,19 @@ func init() {
 	缓存一周销量大于0的WishId
 */
 func CacheWeekSalesGreaterThanZeroWishId() {
-
+	o := orm.NewOrm()
+	var list orm.ParamsList
 	ini.RedisClient.Del(WEEK_SALES_GREATER_THAN_ZERO).Result()
 	start := now.BeginningOfWeek()
 	end := now.EndOfDay()
-	results, err := ini.AppWish.Query("select DISTINCT product_id "+
+	_, err := o.Raw("select DISTINCT product_id "+
 		"from t_incremental "+
 		"where product_id "+
 		"in (select product_id "+
 		"from t_incremental where created>=? and created<=? group by product_id"+
-		" having sum(product_id)>0)", start, end)
+		" having sum(product_id)>0)", start, end).ValuesFlat(&list)
 
-	if err != nil || len(results) <= 0 {
+	if err != nil || len(list) <= 0 {
 		if err != nil {
 			log.WithFields(logrus.Fields{
 				"backgroundServer.go": "56",
@@ -59,132 +61,125 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 		return
 	}
 
-	for index, r := range results {
+	for index, pid := range list {
 
 		if index > 1000 {
-			WeekSalesCacheLenght = len(results)
+			WeekSalesCacheLenght = len(list)
 		}
-		if productId, err := strconv.Atoi(string(r["product_id"])); err == nil {
-			var product model.TProduct
 
-			if _, err := ini.AppWish.Id(productId).Get(&product); err == nil {
-				if product.WishId != "" {
+		if id, ok := pid.(string); ok == true {
+			if pid, err := strconv.Atoi(id); err == nil {
+				product := model.TProduct{Id: uint32(pid)}
+				if err := o.Read(&product); err == nil {
 					if err := ini.RedisClient.RPush(WEEK_SALES_GREATER_THAN_ZERO, product.WishId).Err(); err != nil {
 						log.WithFields(logrus.Fields{
-							"backgroundServer.go": "56",
+							"backgroundServer.go": "76",
 						}).Error(err)
 					}
 				}
-			} else {
-				log.WithFields(logrus.Fields{
-					"backgroundServer.go": "56",
-				}).Error(err)
 			}
 
-		} else {
-			log.WithFields(logrus.Fields{
-				"backgroundServer.go": "56",
-			}).Error(err)
 		}
+
 	}
 
 }
 
 func CacheWishId() {
 
-	loadPage := &model.TLoadPage{Id: 1}
-	_, err := ini.AppWish.Get(loadPage)
+	o := orm.NewOrm()
+	loadPage := model.TLoadPage{Id: 1}
+	err := o.Read(&loadPage)
 	if err != nil {
-		log.WithFields(logrus.Fields{
-			"backgroundServer.go": "79",
-		}).Error(err)
+		log.Fatal(err)
 	}
 
-	page := loadPage.AllWishidCachePage
-	for {
-		AllWishIdCacheLenght, _ = ini.RedisClient.LLen(ALL_WISH_ID_CACHE).Result()
-		//缓存内数据少于40000条时，新增缓存
-		if AllWishIdCacheLenght < 40000 {
-			results, err := ini.AppWish.Query("select wish_id from `t_wish_id` order by id limit 10000 offset ?", page*10000)
+	page := loadPage.AllWishIdCachePage
 
-			if err != nil || len(results) == 0 {
+	for {
+		lenght, _ := ini.RedisClient.LLen(ALL_WISH_ID_CACHE).Result()
+		if lenght < 400000 {
+			var list orm.ParamsList
+			_, err := o.Raw("select wish_id from `wish_id` order by id limit 10000 offset ?", page*10000).ValuesFlat(&list)
+
+			if err != nil || len(list) <= 0 {
 				page = 0
-				_, err := ini.AppWish.Exec("update t_load_page set all_wishid_cache_page=0")
+				_, err := o.Raw("update load_page set all_wishid_cache_page=?", page).Exec()
 				if err != nil {
 					log.WithFields(logrus.Fields{
-						"backgroundServer.go": "94",
+						"backgroundServer.go": "110",
 					}).Error(err)
 				}
 				continue
 			}
 
-			for _, r := range results {
-				err = ini.RedisClient.RPush(ALL_WISH_ID_CACHE, string(r["wish_id"])).Err()
-				if err != nil {
-					log.WithFields(logrus.Fields{
-						"backgroundServer.go": "103",
-					}).Error(err)
+			for _, wishId := range list {
+				if id, ok := wishId.(string); ok == true {
+					if err := ini.RedisClient.RPush(ALL_WISH_ID_CACHE, id).Err(); err != nil {
+						log.WithFields(logrus.Fields{
+							"backgroundServer.go": "120",
+						}).Error(err)
+					}
 				}
 			}
-			page++
 
-			_, err = ini.AppWish.Exec("update t_load_page set all_wishid_cache_page=?", page)
+			page++
+			_, err = o.Raw("update load_page set all_wishid_cache_page=?", page).Exec()
 			if err != nil {
 				log.WithFields(logrus.Fields{
-					"backgroundServer.go": "111",
+					"backgroundServer.go": "130",
 				}).Error(err)
 			}
 		}
-
 	}
 
 }
 
 func CacheSalesGreaterThanWishId() {
 
-	var loadPage model.TLoadPage
-	_, err := ini.AppWish.Id(1).Get(&loadPage)
-
+	o := orm.NewOrm()
+	loadPage := model.TLoadPage{Id: 1}
+	err := o.Read(&loadPage)
 	if err != nil {
-		log.WithFields(logrus.Fields{
-			"backgroundServer.go": "130",
-		}).Error(err)
-		return
+		log.Fatal(err)
 	}
 
 	page := loadPage.SalesGtZeroPage
 
 	for {
-		SalesGreaterThanZeroCacheLenght, _ = ini.RedisClient.LLen(SALES_GREATER_THAN_ZERO).Result()
-		if SalesGreaterThanZeroCacheLenght < 40000 {
-			results, err := ini.AppWish.Query("select wish_id from t_product where num_bought > 0 order by id limit 10000 offset ?", page*10000)
+		lenght, _ := ini.RedisClient.LLen(SALES_GREATER_THAN_ZERO).Result()
+		if lenght < 40000 {
+			var list orm.ParamsList
+			_, err := o.Raw("select wish_id from product where num_bought > 0 order by id limit 1000 offset ?", page*1000).ValuesFlat(&list)
 
-			if err != nil || len(results) == 0 {
+			if err != nil || len(list) <= 0 {
 				page = 0
-				_, err := ini.AppWish.Exec("update t_load_page set sales_gt_zero_page=0")
+				_, err := o.Raw("update load_page set sales_gt_zero_page=?", page).Exec()
 				if err != nil {
 					log.WithFields(logrus.Fields{
-						"backgroundServer.go": "146",
+						"backgroundServer.go": "160",
 					}).Error(err)
 				}
 				continue
 			}
-			for _, r := range results {
-				err = ini.RedisClient.RPush(SALES_GREATER_THAN_ZERO, r["wish_id"]).Err()
-				if err != nil {
-					log.WithFields(logrus.Fields{
-						"backgroundServer.go": "156",
-					}).Error(err)
+
+			for _, wishId := range list {
+				if id, ok := wishId.(string); ok == true {
+					if err := ini.RedisClient.RPush(SALES_GREATER_THAN_ZERO, id).Err(); err != nil {
+						log.WithFields(logrus.Fields{
+							"backgroundServer.go": "170",
+						}).Error(err)
+					}
 				}
 			}
+
 			page++
-			_, err = ini.AppWish.Exec("update t_load_page set sales_gt_zero_page=?", page)
+			_, err = o.Raw("update load_page set sales_gt_zero_page=?", page).Exec()
 			if err != nil {
 				log.WithFields(logrus.Fields{
-					"backgroundServer.go": "164",
+					"backgroundServer.go": "180",
 				}).Error(err)
 			}
 		}
-
 	}
 }

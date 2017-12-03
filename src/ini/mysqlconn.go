@@ -1,44 +1,20 @@
 package ini
 
 import (
-	"fmt"
 	"time"
 
+	"github.com/astaxie/beego/orm"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/go-xorm/xorm"
-)
-
-var (
-	AppWish *xorm.Engine
 )
 
 func initEngine() (err error) {
-	mysql := new(mysql)
+	local, err := time.LoadLocation("Asia/Shanghai")
 
-	err = IniFile.Section("mysql").MapTo(mysql)
 	if err != nil {
 		panic(err)
 	}
-	dns := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?&parseTime=True&loc=Local",
-		mysql.User,
-		mysql.Password,
-		mysql.Host,
-		mysql.Port,
-		mysql.Dbname)
-
-	AppWish, err = xorm.NewEngine("mysql", dns)
-	AppWish.SetMaxIdleConns(mysql.MaxIdle)
-	AppWish.SetMaxOpenConns(mysql.MaxConn)
-	AppWish.TZLocation, _ = time.LoadLocation("Asia/Shanghai")
-	//showSQL := ConfigFile.MustBool("xorm", "show_sql", false)
-	//logLevel := ConfigFile.MustInt("xorm", "log_level", 1)
-	//
-	//MasterDB.ShowSQL(showSQL)
-	//MasterDB.Logger().SetLevel(core.LogLevel(logLevel))
-
-	// 启用缓存
-	// cacher := xorm.NewLRUCacher(xorm.NewMemoryStore(), 1000)
-	// MasterDB.SetDefaultCacher(cacher)
+	time.Local = local
+	orm.RegisterDataBase("default", "mysql", "root:123456@tcp(127.0.0.1:3306)/app_wish?charset=utf8&parseTime=true&loc=Asia%2FShanghai")
 
 	return
 }

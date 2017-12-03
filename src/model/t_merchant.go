@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/astaxie/beego/orm"
 	"github.com/labstack/echo"
 )
 
@@ -40,34 +41,36 @@ func init() {
 }
 
 type TMerchant struct {
-	Id                      uint32    `json:"id" xorm:"not null pk autoincr INT(255)"`
-	MerchantName            string    `json:"merchant_name" xorm:"not null default '' unique VARCHAR(255)"`
-	ProductCount            int       `json:"product_count" xorm:"not null INT(255)"`
-	PercentPositiveFeedback float32   `json:"percent_positive_feedback" xorm:"not null FLOAT(255,2)"`
-	DisplayName             string    `json:"display_name" xorm:"not null default '' VARCHAR(255)"`
-	AvgRating               float32   `json:"avg_rating" xorm:"not null FLOAT(255,2)"`
-	RatingCount             int       `json:"rating_count" xorm:"not null INT(255)"`
-	DisplayPic              string    `json:"display_pic" xorm:"not null default '' VARCHAR(255)"`
-	ApprovedDate            time.Time `json:"approved_date" xorm:"index DATETIME"`
+	Id                      uint32    `orm:"column(id)"`
+	MerchantName            string    `orm:"column(merchant_name);size(255)"`
+	ProductCount            int       `orm:"column(product_count)"`
+	PercentPositiveFeedback float32   `orm:"column(percent_positive_feedback)"`
+	DisplayName             string    `orm:"column(display_name);size(255)"`
+	AvgRating               float32   `orm:"column(avg_rating)"`
+	RatingCount             int       `orm:"column(rating_count)"`
+	DisplayPic              string    `orm:"column(display_pic);size(255)"`
+	ApprovedDate            time.Time `orm:"column(approved_date);type(datetime)"`
+}
+
+func (t *TMerchant) TableName() string {
+	return "merchant"
+}
+
+func init() {
+	orm.RegisterModel(new(TMerchant))
 }
 
 func (this *TMerchant) GetMerchantName() (wishIdJSON MerchantNameJSON, err error) {
+	o := orm.NewOrm()
+
 	if merchantLenght == 0 {
 		merchantLenght, _ = ini.RedisClient.LLen(MERCHANT_NAME_CACHE).Result()
 		if merchantLenght <= 0 {
-			results, err := ini.AppWish.Query("select distinct(merchant_name) from merchant")
-
-			if err != nil {
-				return wishIdJSON, err
-			}
-			for _, r := range results {
-				if string(r["merchant_name"]) != "" {
-					err = ini.RedisClient.RPush(MERCHANT_NAME_CACHE, string(r["merchant_name"])).Err()
-					if err != nil {
-						log.WithFields(logrus.Fields{
-							"t_merchant.go": "62",
-						}).Error(err)
-					}
+			var list []orm.ParamsList
+			num, err := o.Raw("select distinct(merchant_name) from merchant").ValuesList(&list)
+			if err == nil && num > 0 {
+				for _, name := range list {
+					ini.RedisClient.RPush(MERCHANT_NAME_CACHE, fmt.Sprint(name))
 				}
 			}
 		}
@@ -107,11 +110,14 @@ func (this *TMerchant) MerchantInfoHandler(ctx echo.Context) error {
 		return err
 	}
 
+	o := orm.NewOrm()
+
 	for _, id := range dat.WishIds {
 		if len(id) == 24 {
 			wishID := TWishId{WishId: id}
 			wishID.Created = time.Now()
-			if _, err := ini.AppWish.Insert(&wishID); err != nil {
+
+			if _, err := o.Insert(&wishID); err != nil {
 				if strings.Contains(err.Error(), "Error 1062: Duplicate entry") == false {
 					log.WithFields(logrus.Fields{
 						"t_merchant.go": "111",
@@ -130,8 +136,9 @@ func (this *TMerchant) MerchantInfoHandler(ctx echo.Context) error {
 			merchant.ApprovedDate = time.Now()
 		}
 
-		if exit, _ := ini.AppWish.Id(merchant.Id).Get(&merchant); exit == false {
-			if _, err := ini.AppWish.Insert(&merchant); err != nil {
+		if err := o.QueryTable("t_merchant").Filter("id", merchant.Id).One(&merchant); err != nil {
+
+			if _, err := o.Insert(&merchant); err != nil {
 				return err
 			}
 		}
@@ -143,7 +150,7 @@ func (this *TMerchant) MerchantInfoHandler(ctx echo.Context) error {
 		merchant.RatingCount = dat.MerchantInfo.RatingCount
 		merchant.PercentPositiveFeedback = dat.MerchantInfo.PercentPositiveFeedback
 
-		if _, err := ini.AppWish.Update(&merchant); err != nil {
+		if _, err := o.Update(&merchant); err != nil {
 			return err
 		}
 	}

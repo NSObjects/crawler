@@ -2,7 +2,6 @@ package model
 
 import (
 	"bytes"
-	"crawler/src/ini"
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/json"
@@ -16,24 +15,33 @@ import (
 
 	"github.com/astaxie/beego/orm"
 
+	"github.com/Sirupsen/logrus"
 	uuid "github.com/satori/go.uuid"
 )
 
 type TUser struct {
-	Id                    int64  `json:"id" xorm:"pk autoincr BIGINT(20)"`
-	Baid                  string `json:"baid" xorm:"not null default '' VARCHAR(255)"`
-	SweeperSession        string `json:"sweeper_session" xorm:"not null default '' VARCHAR(255)"`
-	Email                 string `json:"email" xorm:"not null default '' VARCHAR(255)"`
-	Password              string `json:"password" xorm:"not null default '' VARCHAR(255)"`
-	RiskifiedSessionToken string `json:"riskified_session_token" xorm:"not null default '' VARCHAR(255)"`
-	AdvertiserId          string `json:"advertiser_id" xorm:"not null default '' VARCHAR(255)"`
-	AppDeviceID           string `json:"app_device_i_d" xorm:"not null default '' VARCHAR(255)"`
-	Country               string `json:"country" xorm:"not null default '' VARCHAR(255)"`
-	FullName              string `json:"full_name" xorm:"not null default '' VARCHAR(255)"`
-	HasAddress            int    `json:"has_address" xorm:"not null default 0 INT(11)"`
-	Invalid               int    `json:"invalid" xorm:"not null default 0 INT(11)"`
-	UserId                string `json:"user_id" xorm:"not null default '' VARCHAR(255)"`
-	Gender                string `json:"gender" xorm:"VARCHAR(11)"`
+	Id                    int    `orm:"column(id);auto"`
+	Baid                  string `orm:"column(baid);size(255)"`
+	SweeperSession        string `orm:"column(sweeper_session);size(255)"`
+	Email                 string `orm:"column(email);size(255)"`
+	Password              string `orm:"column(password);size(255)"`
+	RiskifiedSessionToken string `orm:"column(riskified_session_token);size(255)"`
+	AdvertiserId          string `orm:"column(advertiser_id);size(255)"`
+	AppDeviceID           string `orm:"column(app_device_i_d);size(255)"`
+	Country               string `orm:"column(country);size(255)"`
+	FullName              string `orm:"column(full_name);size(255)"`
+	HasAddress            int    `orm:"column(has_address)"`
+	Invalid               int    `orm:"column(invalid)"`
+	UserId                string `orm:"column(user_id);size(255)"`
+	Gender                string `orm:"column(gender)"`
+}
+
+func (t *TUser) TableName() string {
+	return "t_user"
+}
+
+func init() {
+	orm.RegisterModel(new(TUser))
 }
 
 func init() {
@@ -45,14 +53,19 @@ var u [][]TUser
 
 func GetUsers() []TUser {
 	if len(u) <= 0 {
+		o := orm.NewOrm()
+		qs := o.QueryTable("user")
 		contrys := []string{"Britain", "Canada", "Australia", "France", "Germany", "America"}
 		for _, contry := range contrys {
 			var user []TUser
-			err := ini.AppWish.Where("has_address=1").And("country=?", contry).Find(&user)
+			_, err := qs.Filter("has_address", 1).Filter("country", contry).All(&user)
 			if err != nil {
-				log.Print(err)
+				log.WithFields(logrus.Fields{
+					"t_user.go": "65",
+				}).Error(err)
 			}
 			u = append(u, user)
+
 		}
 	}
 	var users []TUser
