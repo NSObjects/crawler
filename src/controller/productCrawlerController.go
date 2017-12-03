@@ -69,14 +69,14 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 		weekSalesPage := <-weekSalesPageChan
 		weekSalesPageChan <- weekSalesPage
 
-		_, err := o.Raw("update load_page set week_sales_page=?", weekSalesPage).Exec()
+		_, err := o.Raw("update t_load_page set week_sales_page=?", weekSalesPage).Exec()
 		if err != nil {
 			log.WithFields(logrus.Fields{
 				"productCrawlerController.go": "75",
 			}).Error(err)
 		}
 		page := <-pageChan
-		_, err = o.Raw("update load_page set all_id_page=?", page).Exec()
+		_, err = o.Raw("update t_load_page set all_id_page=?", page).Exec()
 		if err != nil {
 			log.WithFields(logrus.Fields{
 				"productCrawlerController.go": "82",
@@ -375,7 +375,7 @@ func nocacheWishId() (datas []string) {
 	o := orm.NewOrm()
 	page := <-pageChan
 	var list orm.ParamsList
-	_, err := o.Raw("select wish_id from wish_id limit ? offset ?", size, size*page).ValuesFlat(&list)
+	_, err := o.Raw("select wish_id from t_wish_id limit ? offset ?", size, size*page).ValuesFlat(&list)
 	if err != nil {
 		utility.Errorln(4, err)
 	}
@@ -386,7 +386,7 @@ func nocacheWishId() (datas []string) {
 				"productCrawlerController.go": "386",
 			}).Error(err)
 		}
-		_, err = o.Raw("select wish_id from wish_id limit ? offset ?", size, 0).ValuesFlat(&list)
+		_, err = o.Raw("select wish_id from t_wish_id limit ? offset ?", size, 0).ValuesFlat(&list)
 		if err != nil {
 			log.WithFields(logrus.Fields{
 				"productCrawlerController.go": "392",

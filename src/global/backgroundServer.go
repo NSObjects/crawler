@@ -100,11 +100,11 @@ func CacheWishId() {
 		lenght, _ := ini.RedisClient.LLen(ALL_WISH_ID_CACHE).Result()
 		if lenght < 400000 {
 			var list orm.ParamsList
-			_, err := o.Raw("select wish_id from `wish_id` order by id limit 10000 offset ?", page*10000).ValuesFlat(&list)
+			_, err := o.Raw("select wish_id from `t_wish_id` order by id limit 10000 offset ?", page*10000).ValuesFlat(&list)
 
 			if err != nil || len(list) <= 0 {
 				page = 0
-				_, err := o.Raw("update load_page set all_wishid_cache_page=?", page).Exec()
+				_, err := o.Raw("update t_load_page set all_wishid_cache_page=?", page).Exec()
 				if err != nil {
 					log.WithFields(logrus.Fields{
 						"backgroundServer.go": "110",
@@ -124,7 +124,7 @@ func CacheWishId() {
 			}
 
 			page++
-			_, err = o.Raw("update load_page set all_wishid_cache_page=?", page).Exec()
+			_, err = o.Raw("update t_load_page set all_wishid_cache_page=?", page).Exec()
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					"backgroundServer.go": "130",
@@ -150,11 +150,11 @@ func CacheSalesGreaterThanWishId() {
 		lenght, _ := ini.RedisClient.LLen(SALES_GREATER_THAN_ZERO).Result()
 		if lenght < 40000 {
 			var list orm.ParamsList
-			_, err := o.Raw("select wish_id from product where num_bought > 0 order by id limit 1000 offset ?", page*1000).ValuesFlat(&list)
+			_, err := o.Raw("select wish_id from t_product where num_bought > 0 order by id limit 1000 offset ?", page*1000).ValuesFlat(&list)
 
 			if err != nil || len(list) <= 0 {
 				page = 0
-				_, err := o.Raw("update load_page set sales_gt_zero_page=?", page).Exec()
+				_, err := o.Raw("update t_load_page set sales_gt_zero_page=?", page).Exec()
 				if err != nil {
 					log.WithFields(logrus.Fields{
 						"backgroundServer.go": "160",
@@ -174,7 +174,7 @@ func CacheSalesGreaterThanWishId() {
 			}
 
 			page++
-			_, err = o.Raw("update load_page set sales_gt_zero_page=?", page).Exec()
+			_, err = o.Raw("update t_load_page set sales_gt_zero_page=?", page).Exec()
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					"backgroundServer.go": "180",

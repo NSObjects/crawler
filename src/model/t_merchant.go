@@ -67,7 +67,7 @@ func (this *TMerchant) GetMerchantName() (wishIdJSON MerchantNameJSON, err error
 		merchantLenght, _ = ini.RedisClient.LLen(MERCHANT_NAME_CACHE).Result()
 		if merchantLenght <= 0 {
 			var list []orm.ParamsList
-			num, err := o.Raw("select distinct(merchant_name) from merchant").ValuesList(&list)
+			num, err := o.Raw("select distinct(t_merchant_name) from merchant").ValuesList(&list)
 			if err == nil && num > 0 {
 				for _, name := range list {
 					ini.RedisClient.RPush(MERCHANT_NAME_CACHE, fmt.Sprint(name))
