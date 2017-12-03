@@ -54,7 +54,7 @@ var u [][]TUser
 func GetUsers() []TUser {
 	if len(u) <= 0 {
 		o := orm.NewOrm()
-		qs := o.QueryTable("user")
+		qs := o.QueryTable("t_user")
 		contrys := []string{"Britain", "Canada", "Australia", "France", "Germany", "America"}
 		for _, contry := range contrys {
 			var user []TUser
