@@ -53,7 +53,7 @@ type TMerchant struct {
 }
 
 func (t *TMerchant) TableName() string {
-	return "merchant"
+	return "t_merchant"
 }
 
 func init() {
