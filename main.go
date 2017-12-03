@@ -6,23 +6,26 @@ import (
 
 	"crawler/src/global"
 
-	"fmt"
+	"crawler/src/controller"
+	"crawler/src/router"
 	_ "net/http/pprof"
+
+	"github.com/labstack/echo"
 )
 
 func main() {
-	fmt.Println(util.FNV("59a539a6a02d3719e700eae2"))
-	//ServeBackGround()
-	//controller.Setup()
-	//e := echo.New()
-	//
-	//g := e.Group("/api")
-	//router.RegisterRoutes(g)
-	//e.Logger.Fatal(e.Start(":2597"))
+
+	ServeBackGround()
+	controller.Setup()
+	e := echo.New()
+
+	g := e.Group("/api")
+	router.RegisterRoutes(g)
+	e.Logger.Fatal(e.Start(":2597"))
 }
 
 func init() {
-	//ini.Setup()
+	ini.Setup()
 }
 
 func ServeBackGround() {
