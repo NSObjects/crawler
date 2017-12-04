@@ -1,3 +1,10 @@
+/*
+ * Created  snapshotController.go on 17-12-4 下午3:42
+ * Copyright (c) 2017  dyt.Co.Ltd All right reserved
+ * Author lintao
+ * Last modified 17-12-4 下午3:42
+ */
+
 package controller
 
 //type SnapshotController struct{}
