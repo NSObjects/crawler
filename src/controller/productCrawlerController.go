@@ -90,19 +90,20 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 	mutex.Lock()
 	if requestCount >= 3 && requestCount < 8 && global.WeekSalesCacheLenght > 0 {
 		datas = wishIdByWeekSalesGtZero()
-		fmt.Println("wishIdByWeekSalesGtZero()")
+		fmt.Println("wishIdByWeekSalesGtZero()", requestCount)
 	} else if requestCount >= 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
-		fmt.Println("wishIdBySalesGtZero()")
+		fmt.Println("wishIdBySalesGtZero()", requestCount)
 		datas = wishIdBySalesGtZero()
 	} else if global.AllWishIdCacheLenght > 0 {
-		fmt.Println("allWishId()")
+		fmt.Println("allWishId()", requestCount)
 		datas = allWishId()
 	} else {
-		fmt.Println("nocacheWishId()")
+		fmt.Println("nocacheWishId()", requestCount)
 		datas = nocacheWishId()
 	}
-	mutex.Unlock()
 	requestCount++
+	mutex.Unlock()
+
 	if len(datas) > 0 {
 		JSONData.Data = datas
 		JSONData.Users = model.GetUsers()
