@@ -93,7 +93,7 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 	if requestCount >= 3 && requestCount < 8 && global.WeekSalesCacheLenght > 0 {
 		datas = wishIdByWeekSalesGtZero()
 		fmt.Println("wishIdByWeekSalesGtZero()", global.SalesGreaterThanZeroCacheLenght, global.WeekSalesCacheLenght)
-	} else if requestCount > 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
+	} else if requestCount >= 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
 		fmt.Println("wishIdBySalesGtZero()", global.SalesGreaterThanZeroCacheLenght, global.WeekSalesCacheLenght)
 		datas = wishIdBySalesGtZero()
 	} else if global.AllWishIdCacheLenght > 0 {
