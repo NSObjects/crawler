@@ -7,7 +7,6 @@ import (
 	"crawler/src/model"
 	"crawler/src/util"
 	"os"
-	"strconv"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/jinzhu/now"
@@ -22,6 +21,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"strconv"
 
 	"github.com/astaxie/beego/orm"
 )
@@ -101,9 +102,9 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 		fmt.Println("nocacheWishId()", requestCount)
 		datas = nocacheWishId()
 	}
-	requestCount++
-	mutex.Unlock()
 
+	mutex.Unlock()
+	requestCount++
 	if len(datas) > 0 {
 		JSONData.Data = datas
 		JSONData.Users = model.GetUsers()
@@ -176,7 +177,7 @@ func SaveProductToDBFrom(jsonStr []byte) {
 		if j.Code != 0 || len(j.Data.Contest.ID) <= 0 {
 			continue
 		}
-
+		inserViewing(j)
 		//先查redis中是否缓存了这个产品
 		//如果没有就存一个快照
 
@@ -315,30 +316,6 @@ func updateProduct(jsonData model.WishOrginalData, product model.TProduct) {
 
 func configProduct(jsonData model.WishOrginalData, product *model.TProduct) {
 
-	if len(jsonData.Data.Contest.CurrentlyViewing.MessageList) > 0 {
-		currentlyViewing := 0
-		for _, v := range jsonData.Data.Contest.CurrentlyViewing.MessageList {
-			for _, d := range strings.Split(v, " ") {
-				if s, err := strconv.Atoi(d); err == nil {
-					currentlyViewing += s
-				}
-			}
-		}
-		v := model.TViewings{
-			Count:     currentlyViewing,
-			ProductId: util.FNV(jsonData.Data.Contest.ID),
-		}
-
-		v.Created = time.Now()
-		o := orm.NewOrm()
-
-		if _, err := o.Insert(&v); err != nil {
-			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "332",
-			}).Error(err)
-		}
-	}
-
 	product.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
 
 	var price float64
@@ -373,6 +350,32 @@ func configProduct(jsonData model.WishOrginalData, product *model.TProduct) {
 	product.NumEntered = jsonData.Data.Contest.NumEntered
 	product.NumBought = jsonData.Data.Contest.NumBought
 	product.Updated = time.Now()
+}
+
+func inserViewing(jsonData model.WishOrginalData) {
+	if len(jsonData.Data.Contest.CurrentlyViewing.MessageList) > 0 {
+		currentlyViewing := 0
+		for _, v := range jsonData.Data.Contest.CurrentlyViewing.MessageList {
+			for _, d := range strings.Split(v, " ") {
+				if s, err := strconv.Atoi(d); err == nil {
+					currentlyViewing += s
+				}
+			}
+		}
+		v := model.TViewings{
+			Count:     currentlyViewing,
+			ProductId: util.FNV(jsonData.Data.Contest.ID),
+		}
+
+		v.Created = time.Now()
+		o := orm.NewOrm()
+
+		if _, err := o.Insert(&v); err != nil {
+			log.WithFields(logrus.Fields{
+				"productCrawlerController.go": "332",
+			}).Error(err)
+		}
+	}
 }
 
 func nocacheWishId() (datas []string) {
