@@ -1,8 +1,8 @@
 /*
- * Created  main.go on 17-12-4 下午3:42
+ * Created  main.go on 17-12-4 下午3:51
  * Copyright (c) 2017  dyt.Co.Ltd All right reserved
  * Author lintao
- * Last modified 17-12-4 下午1:46
+ * Last modified 17-12-4 下午3:51
  */
 
 package main
@@ -21,11 +21,9 @@ import (
 )
 
 func main() {
-
 	ServeBackGround()
 	controller.Setup()
 	e := echo.New()
-
 	g := e.Group("/api")
 	router.RegisterRoutes(g)
 	e.Logger.Fatal(e.Start(":2597"))

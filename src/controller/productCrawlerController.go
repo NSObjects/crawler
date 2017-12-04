@@ -38,7 +38,7 @@ const size = 250
 
 var (
 	u            [][]model.TUser
-	requestCount int
+	requestCount chan int
 	mutex        sync.Mutex
 	pageChan     chan int
 )
@@ -72,8 +72,8 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 	var JSONData WishIdJson
 	JSONData.Code = 200
 	o := orm.NewOrm()
-	if requestCount >= 10 {
-
+	rc := <-requestCount
+	if rc >= 10 {
 		page := <-pageChan
 		_, err := o.Raw("update t_load_page set all_id_page=?", page).Exec()
 		if err != nil {
@@ -82,15 +82,15 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 			}).Error(err)
 		}
 		pageChan <- page
-		requestCount = 0
+		requestCount <- 0
+		rc = <-requestCount
 	}
 
 	var datas []string
-	mutex.Lock()
 
-	if requestCount >= 3 && requestCount < 8 && global.WeekSalesCacheLenght > 0 {
+	if rc >= 3 && rc < 8 && global.WeekSalesCacheLenght > 0 {
 		datas = wishIdByWeekSalesGtZero()
-	} else if requestCount >= 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
+	} else if rc >= 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
 		datas = wishIdBySalesGtZero()
 	} else if global.AllWishIdCacheLenght > 0 {
 		datas = allWishId()
@@ -98,8 +98,9 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 		datas = nocacheWishId()
 	}
 
-	mutex.Unlock()
-	requestCount++
+	rc += 1
+	requestCount <- rc
+
 	if len(datas) > 0 {
 		JSONData.Data = datas
 		JSONData.Users = model.GetUsers()
@@ -137,8 +138,8 @@ func (this *ProductCrawlerController) Post(ctx echo.Context) error {
 
 func Setup() {
 
-	requestCount = 0
-
+	requestCount = make(chan int, 1)
+	requestCount <- 0
 	o := orm.NewOrm()
 	loadPage := model.TLoadPage{
 		Id: 1,
