@@ -184,7 +184,7 @@ func SaveProductToDBFrom(jsonStr []byte) {
 
 		id, _ := ini.RedisClient.HGet(global.SNAPSHOT_IDS, j.Data.Contest.ID).Result()
 
-		if len(id) <= 0 {
+		if len(id) <= 0 && j.Data.Contest.NumBought > 50 {
 
 			if value, err := json.Marshal(&j); err == nil {
 				ps := model.TProductSnapshot{

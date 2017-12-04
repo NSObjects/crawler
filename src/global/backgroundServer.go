@@ -45,7 +45,7 @@ var list orm.ParamsList
 
 func cacheList() {
 	o := orm.NewOrm()
-	var list orm.ParamsList
+
 	ini.RedisClient.Del(WEEK_SALES_GREATER_THAN_ZERO).Result()
 	start := now.BeginningOfWeek()
 	end := now.EndOfDay()
@@ -56,7 +56,7 @@ func cacheList() {
 		"from t_incremental where created>=? and created<=? group by product_id"+
 		" having sum(product_id)>0)", start, end).ValuesFlat(&list)
 
-	if err != nil || len(list) <= 0 {
+	if err != nil {
 		if err != nil {
 			log.WithFields(logrus.Fields{
 				"backgroundServer.go": "56",
