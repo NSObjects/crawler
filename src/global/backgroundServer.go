@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	WeekSalesCacheLenght            int
+	WeekSalesCacheLenght            int64
 	AllWishIdCacheLenght            int64
 	SalesGreaterThanZeroCacheLenght int64
 )
@@ -69,11 +69,11 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 	o := orm.NewOrm()
 	util.LoopTimer(9, cacheList)
 	for {
-		AllWishIdCacheLenght, _ = ini.RedisClient.LLen(WEEK_SALES_GREATER_THAN_ZERO).Result()
+		WeekSalesCacheLenght, _ = ini.RedisClient.LLen(WEEK_SALES_GREATER_THAN_ZERO).Result()
 		if len(list) < 2 {
 			continue
 		}
-		if AllWishIdCacheLenght < int64(len(list)/2) {
+		if WeekSalesCacheLenght < int64(len(list)/2) {
 			for _, pid := range list {
 				if id, ok := pid.(string); ok == true {
 					if pid, err := strconv.Atoi(id); err == nil {
