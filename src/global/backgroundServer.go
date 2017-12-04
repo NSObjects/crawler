@@ -57,11 +57,9 @@ func cacheList() {
 		" having sum(product_id)>0)", start, end).ValuesFlat(&list)
 
 	if err != nil {
-		if err != nil {
-			log.WithFields(logrus.Fields{
-				"backgroundServer.go": "56",
-			}).Error(err)
-		}
+		log.WithFields(logrus.Fields{
+			"backgroundServer.go": "61",
+		}).Error(err)
 	}
 }
 
@@ -70,9 +68,7 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 	util.LoopTimer(9, cacheList)
 	for {
 		WeekSalesCacheLenght, _ = ini.RedisClient.LLen(WEEK_SALES_GREATER_THAN_ZERO).Result()
-		if len(list) < 2 {
-			continue
-		}
+
 		if WeekSalesCacheLenght < int64(len(list)/2) {
 			for _, pid := range list {
 				if id, ok := pid.(string); ok == true {
@@ -81,7 +77,7 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 						if err := o.Read(&product); err == nil {
 							if err := ini.RedisClient.RPush(WEEK_SALES_GREATER_THAN_ZERO, product.WishId).Err(); err != nil {
 								log.WithFields(logrus.Fields{
-									"backgroundServer.go": "76",
+									"backgroundServer.go": "82",
 								}).Error(err)
 							}
 						}
@@ -117,7 +113,7 @@ func CacheWishId() {
 				_, err := o.Raw("update t_load_page set all_wishid_cache_page=?", page).Exec()
 				if err != nil {
 					log.WithFields(logrus.Fields{
-						"backgroundServer.go": "110",
+						"backgroundServer.go": "118",
 					}).Error(err)
 				}
 				continue
@@ -127,7 +123,7 @@ func CacheWishId() {
 				if id, ok := wishId.(string); ok == true {
 					if err := ini.RedisClient.RPush(ALL_WISH_ID_CACHE, id).Err(); err != nil {
 						log.WithFields(logrus.Fields{
-							"backgroundServer.go": "120",
+							"backgroundServer.go": "128",
 						}).Error(err)
 					}
 				}
@@ -137,7 +133,7 @@ func CacheWishId() {
 			_, err = o.Raw("update t_load_page set all_wishid_cache_page=?", page).Exec()
 			if err != nil {
 				log.WithFields(logrus.Fields{
-					"backgroundServer.go": "130",
+					"backgroundServer.go": "138",
 				}).Error(err)
 			}
 		}
@@ -152,7 +148,7 @@ func CacheSalesGreaterThanWishId() {
 	err := o.Read(&loadPage)
 	if err != nil {
 		log.WithFields(logrus.Fields{
-			"backgroundServer.go": "145",
+			"backgroundServer.go": "153",
 		}).Error(err)
 	}
 
@@ -169,7 +165,7 @@ func CacheSalesGreaterThanWishId() {
 				_, err := o.Raw("update t_load_page set sales_gt_zero_page=?", page).Exec()
 				if err != nil {
 					log.WithFields(logrus.Fields{
-						"backgroundServer.go": "162",
+						"backgroundServer.go": "170",
 					}).Error(err)
 				}
 				continue
@@ -179,7 +175,7 @@ func CacheSalesGreaterThanWishId() {
 				if id, ok := wishId.(string); ok == true {
 					if err := ini.RedisClient.RPush(SALES_GREATER_THAN_ZERO, id).Err(); err != nil {
 						log.WithFields(logrus.Fields{
-							"backgroundServer.go": "170",
+							"backgroundServer.go": "180",
 						}).Error(err)
 					}
 				}
@@ -189,7 +185,7 @@ func CacheSalesGreaterThanWishId() {
 			_, err = o.Raw("update t_load_page set sales_gt_zero_page=?", page).Exec()
 			if err != nil {
 				log.WithFields(logrus.Fields{
-					"backgroundServer.go": "180",
+					"backgroundServer.go": "190",
 				}).Error(err)
 			}
 		}

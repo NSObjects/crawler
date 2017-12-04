@@ -30,11 +30,10 @@ import (
 const size = 250
 
 var (
-	u                 [][]model.TUser
-	requestCount      int
-	mutex             sync.Mutex
-	weekSalesPageChan chan int
-	pageChan          chan int
+	u            [][]model.TUser
+	requestCount int
+	mutex        sync.Mutex
+	pageChan     chan int
 )
 
 var log = logrus.New()
@@ -67,17 +66,9 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 	JSONData.Code = 200
 	o := orm.NewOrm()
 	if requestCount >= 10 {
-		weekSalesPage := <-weekSalesPageChan
-		weekSalesPageChan <- weekSalesPage
 
-		_, err := o.Raw("update t_load_page set week_sales_page=?", weekSalesPage).Exec()
-		if err != nil {
-			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "75",
-			}).Error(err)
-		}
 		page := <-pageChan
-		_, err = o.Raw("update t_load_page set all_id_page=?", page).Exec()
+		_, err := o.Raw("update t_load_page set all_id_page=?", page).Exec()
 		if err != nil {
 			log.WithFields(logrus.Fields{
 				"productCrawlerController.go": "82",
@@ -92,15 +83,11 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 
 	if requestCount >= 3 && requestCount < 8 && global.WeekSalesCacheLenght > 0 {
 		datas = wishIdByWeekSalesGtZero()
-		fmt.Println("wishIdByWeekSalesGtZero()", global.SalesGreaterThanZeroCacheLenght, global.WeekSalesCacheLenght)
 	} else if requestCount >= 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
-		fmt.Println("wishIdBySalesGtZero()", global.SalesGreaterThanZeroCacheLenght, global.WeekSalesCacheLenght)
 		datas = wishIdBySalesGtZero()
 	} else if global.AllWishIdCacheLenght > 0 {
-		fmt.Println("allWishId()", global.SalesGreaterThanZeroCacheLenght, global.WeekSalesCacheLenght)
 		datas = allWishId()
 	} else {
-		fmt.Println("nocacheWishId()", global.SalesGreaterThanZeroCacheLenght, global.WeekSalesCacheLenght)
 		datas = nocacheWishId()
 	}
 
@@ -152,9 +139,6 @@ func Setup() {
 	if err := o.Read(&loadPage); err != nil {
 		fmt.Println(err)
 	}
-
-	weekSalesPageChan = make(chan int, 1000)
-	weekSalesPageChan <- loadPage.WeeSalesPage
 
 	pageChan = make(chan int, 1000)
 	pageChan <- loadPage.AllIdPage
@@ -220,7 +204,6 @@ func SaveProductToDBFrom(jsonStr []byte) {
 		//没有就新增一条产品数据
 
 		if err := o.QueryTable("t_product").Filter("wish_id", j.Data.Contest.ID).One(&product); err == nil {
-
 			saveWishDataIncremental(j, &product)
 			updateProduct(j, product)
 		} else {
@@ -436,43 +419,7 @@ func wishIdByWeekSalesGtZero() (datas []string) {
 		ini.RedisClient.LTrim(global.WEEK_SALES_GREATER_THAN_ZERO, 250, -1)
 		return ids
 	}
-	//cachePage := <-weekSalesPageChan
-	//var start = 0
-	//var end = 0
-	//if cachePage*size+size > global.WeekSalesCacheLenght {
-	//	start = cachePage * size
-	//	end = global.WeekSalesCacheLenght - cachePage*size
-	//	global.WeekSalesCacheLenght = 0
-	//} else {
-	//	start = cachePage * size
-	//	end = cachePage*size + size
-	//}
-	//
-	//if ids, err := ini.RedisClient.
-	//	LRange(global.WEEK_SALES_GREATER_THAN_ZERO, int64(start), int64(end)).
-	//	Result(); err == nil {
-	//	datas = ids
-	//} else {
-	//	log.WithFields(logrus.Fields{
-	//		"productCrawlerController.go": "444",
-	//	}).Error(err)
-	//}
-	//
-	//if len(datas) <= 0 {
-	//	if ids, err := ini.RedisClient.
-	//		LRange(global.WEEK_SALES_GREATER_THAN_ZERO, 0, int64(size)).
-	//		Result(); err == nil {
-	//		datas = ids
-	//	} else {
-	//		log.WithFields(logrus.Fields{
-	//			"productCrawlerController.go": "455",
-	//		}).Error(err)
-	//	}
-	//
-	//	weekSalesPageChan <- 1
-	//} else {
-	//	weekSalesPageChan <- cachePage + 1
-	//}
+
 	return datas
 }
 
