@@ -89,17 +89,18 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 
 	var datas []string
 	mutex.Lock()
+
 	if requestCount >= 3 && requestCount < 8 && global.WeekSalesCacheLenght > 0 {
 		datas = wishIdByWeekSalesGtZero()
-		fmt.Println("wishIdByWeekSalesGtZero()", requestCount)
-	} else if requestCount >= 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
-		fmt.Println("wishIdBySalesGtZero()", requestCount)
+		fmt.Println("wishIdByWeekSalesGtZero()", global.SalesGreaterThanZeroCacheLenght, global.WeekSalesCacheLenght)
+	} else if requestCount > 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
+		fmt.Println("wishIdBySalesGtZero()", global.SalesGreaterThanZeroCacheLenght, global.WeekSalesCacheLenght)
 		datas = wishIdBySalesGtZero()
 	} else if global.AllWishIdCacheLenght > 0 {
-		fmt.Println("allWishId()", requestCount)
+		fmt.Println("allWishId()", global.SalesGreaterThanZeroCacheLenght, global.WeekSalesCacheLenght)
 		datas = allWishId()
 	} else {
-		fmt.Println("nocacheWishId()", requestCount)
+		fmt.Println("nocacheWishId()", global.SalesGreaterThanZeroCacheLenght, global.WeekSalesCacheLenght)
 		datas = nocacheWishId()
 	}
 

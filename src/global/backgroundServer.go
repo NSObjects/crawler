@@ -141,7 +141,9 @@ func CacheSalesGreaterThanWishId() {
 	loadPage := model.TLoadPage{Id: 1}
 	err := o.Read(&loadPage)
 	if err != nil {
-		log.Fatal(err)
+		log.WithFields(logrus.Fields{
+			"backgroundServer.go": "145",
+		}).Error(err)
 	}
 
 	page := loadPage.SalesGtZeroPage
@@ -157,7 +159,7 @@ func CacheSalesGreaterThanWishId() {
 				_, err := o.Raw("update t_load_page set sales_gt_zero_page=?", page).Exec()
 				if err != nil {
 					log.WithFields(logrus.Fields{
-						"backgroundServer.go": "160",
+						"backgroundServer.go": "162",
 					}).Error(err)
 				}
 				continue
