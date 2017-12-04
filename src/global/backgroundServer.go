@@ -3,6 +3,7 @@ package global
 import (
 	"crawler/src/ini"
 	"crawler/src/model"
+	"crawler/src/util"
 	"fmt"
 	"os"
 	"strconv"
@@ -39,7 +40,10 @@ func init() {
 /*
 	缓存一周销量大于0的WishId
 */
-func CacheWeekSalesGreaterThanZeroWishId() {
+
+var list orm.ParamsList
+
+func cacheList() {
 	o := orm.NewOrm()
 	var list orm.ParamsList
 	ini.RedisClient.Del(WEEK_SALES_GREATER_THAN_ZERO).Result()
@@ -58,29 +62,35 @@ func CacheWeekSalesGreaterThanZeroWishId() {
 				"backgroundServer.go": "56",
 			}).Error(err)
 		}
-		return
 	}
+}
 
-	for index, pid := range list {
-
-		if index > 1000 {
-			WeekSalesCacheLenght = len(list)
+func CacheWeekSalesGreaterThanZeroWishId() {
+	o := orm.NewOrm()
+	util.LoopTimer(9, cacheList)
+	for {
+		AllWishIdCacheLenght, _ = ini.RedisClient.LLen(WEEK_SALES_GREATER_THAN_ZERO).Result()
+		if len(list) < 2 {
+			continue
 		}
-
-		if id, ok := pid.(string); ok == true {
-			if pid, err := strconv.Atoi(id); err == nil {
-				product := model.TProduct{Id: uint32(pid)}
-				if err := o.Read(&product); err == nil {
-					if err := ini.RedisClient.RPush(WEEK_SALES_GREATER_THAN_ZERO, product.WishId).Err(); err != nil {
-						log.WithFields(logrus.Fields{
-							"backgroundServer.go": "76",
-						}).Error(err)
+		if AllWishIdCacheLenght < int64(len(list)/2) {
+			for _, pid := range list {
+				if id, ok := pid.(string); ok == true {
+					if pid, err := strconv.Atoi(id); err == nil {
+						product := model.TProduct{Id: uint32(pid)}
+						if err := o.Read(&product); err == nil {
+							if err := ini.RedisClient.RPush(WEEK_SALES_GREATER_THAN_ZERO, product.WishId).Err(); err != nil {
+								log.WithFields(logrus.Fields{
+									"backgroundServer.go": "76",
+								}).Error(err)
+							}
+						}
 					}
+
 				}
+
 			}
-
 		}
-
 	}
 
 }
@@ -149,7 +159,7 @@ func CacheSalesGreaterThanWishId() {
 	page := loadPage.SalesGtZeroPage
 
 	for {
-		SalesGreaterThanZeroCacheLenght, _ := ini.RedisClient.LLen(SALES_GREATER_THAN_ZERO).Result()
+		SalesGreaterThanZeroCacheLenght, _ = ini.RedisClient.LLen(SALES_GREATER_THAN_ZERO).Result()
 		if SalesGreaterThanZeroCacheLenght < 400000 {
 			var list orm.ParamsList
 			_, err := o.Raw("select wish_id from t_product where num_bought > 0 order by id limit 10000 offset ?", page*10000).ValuesFlat(&list)

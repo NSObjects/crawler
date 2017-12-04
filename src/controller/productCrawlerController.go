@@ -432,43 +432,47 @@ func wishIdBySalesGtZero() (datas []string) {
 
 func wishIdByWeekSalesGtZero() (datas []string) {
 
-	cachePage := <-weekSalesPageChan
-	var start = 0
-	var end = 0
-	if cachePage*size+size > global.WeekSalesCacheLenght {
-		start = cachePage * size
-		end = global.WeekSalesCacheLenght - cachePage*size
-		global.WeekSalesCacheLenght = 0
-	} else {
-		start = cachePage * size
-		end = cachePage*size + size
+	if ids, err := ini.RedisClient.LRange(global.WEEK_SALES_GREATER_THAN_ZERO, 0, 250).Result(); err == nil {
+		ini.RedisClient.LTrim(global.WEEK_SALES_GREATER_THAN_ZERO, 250, -1)
+		return ids
 	}
-
-	if ids, err := ini.RedisClient.
-		LRange(global.WEEK_SALES_GREATER_THAN_ZERO, int64(start), int64(end)).
-		Result(); err == nil {
-		datas = ids
-	} else {
-		log.WithFields(logrus.Fields{
-			"productCrawlerController.go": "444",
-		}).Error(err)
-	}
-
-	if len(datas) <= 0 {
-		if ids, err := ini.RedisClient.
-			LRange(global.WEEK_SALES_GREATER_THAN_ZERO, 0, int64(size)).
-			Result(); err == nil {
-			datas = ids
-		} else {
-			log.WithFields(logrus.Fields{
-				"productCrawlerController.go": "455",
-			}).Error(err)
-		}
-
-		weekSalesPageChan <- 1
-	} else {
-		weekSalesPageChan <- cachePage + 1
-	}
+	//cachePage := <-weekSalesPageChan
+	//var start = 0
+	//var end = 0
+	//if cachePage*size+size > global.WeekSalesCacheLenght {
+	//	start = cachePage * size
+	//	end = global.WeekSalesCacheLenght - cachePage*size
+	//	global.WeekSalesCacheLenght = 0
+	//} else {
+	//	start = cachePage * size
+	//	end = cachePage*size + size
+	//}
+	//
+	//if ids, err := ini.RedisClient.
+	//	LRange(global.WEEK_SALES_GREATER_THAN_ZERO, int64(start), int64(end)).
+	//	Result(); err == nil {
+	//	datas = ids
+	//} else {
+	//	log.WithFields(logrus.Fields{
+	//		"productCrawlerController.go": "444",
+	//	}).Error(err)
+	//}
+	//
+	//if len(datas) <= 0 {
+	//	if ids, err := ini.RedisClient.
+	//		LRange(global.WEEK_SALES_GREATER_THAN_ZERO, 0, int64(size)).
+	//		Result(); err == nil {
+	//		datas = ids
+	//	} else {
+	//		log.WithFields(logrus.Fields{
+	//			"productCrawlerController.go": "455",
+	//		}).Error(err)
+	//	}
+	//
+	//	weekSalesPageChan <- 1
+	//} else {
+	//	weekSalesPageChan <- cachePage + 1
+	//}
 	return datas
 }
 

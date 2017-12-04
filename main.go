@@ -31,7 +31,8 @@ func init() {
 func ServeBackGround() {
 	go global.CacheWishId()
 	go global.CacheSalesGreaterThanWishId()
-	util.LoopTimer(9, global.CacheWeekSalesGreaterThanZeroWishId)
+	go global.CacheWeekSalesGreaterThanZeroWishId()
+
 	util.LoopTimer(0, clearCache)
 }
 
