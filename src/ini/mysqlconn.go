@@ -14,7 +14,7 @@ func initEngine() (err error) {
 		panic(err)
 	}
 	time.Local = local
-	orm.RegisterDataBase("default", "mysql", "root:123456@tcp(127.0.0.1:3306)/source?charset=utf8&parseTime=true&loc=Asia%2FShanghai")
+	orm.RegisterDataBase("default", "mysql", "root:123456@tcp(127.0.0.1:3306)/source?charset=utf8&parseTime=true&loc=Asia%2FShanghai", 30, 30)
 
 	return
 }
