@@ -205,29 +205,29 @@ func SaveProductToDBFrom(jsonStr []byte) {
 				}).Error(err)
 			}
 		}
-
-		var product model.TProduct
-		//查数据库中是否有这个产品
-		//如果有新增一条增量，更新产品数据
-		//没有就新增一条产品数据
-
-		if err := o.QueryTable("t_product").Filter("wish_id", j.Data.Contest.ID).One(&product); err == nil {
-			saveWishDataIncremental(j, &product)
-			updateProduct(j, product)
-		} else {
-			product.Created = time.Now()
-			product.Id = util.FNV(j.Data.Contest.ID)
-			configProduct(j, &product)
-
-			_, err = o.Insert(&product)
-			if err != nil {
-				if strings.Contains(err.Error(), " Duplicate entry") == false {
-					log.WithFields(logrus.Fields{
-						"productCrawlerController.go": "228",
-					}).Error(err)
-				}
-			}
-		}
+		//
+		//var product model.TProduct
+		////查数据库中是否有这个产品
+		////如果有新增一条增量，更新产品数据
+		////没有就新增一条产品数据
+		//
+		//if err := o.QueryTable("t_product").Filter("wish_id", j.Data.Contest.ID).One(&product); err == nil {
+		//	saveWishDataIncremental(j, &product)
+		//	updateProduct(j, product)
+		//} else {
+		//	product.Created = time.Now()
+		//	product.Id = util.FNV(j.Data.Contest.ID)
+		//	configProduct(j, &product)
+		//
+		//	_, err = o.Insert(&product)
+		//	if err != nil {
+		//		if strings.Contains(err.Error(), " Duplicate entry") == false {
+		//			log.WithFields(logrus.Fields{
+		//				"productCrawlerController.go": "228",
+		//			}).Error(err)
+		//		}
+		//	}
+		//}
 
 	}
 }
