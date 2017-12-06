@@ -72,7 +72,7 @@ func cacheList() {
 
 func CacheWeekSalesGreaterThanZeroWishId() {
 	o := orm.NewOrm()
-	util.LoopTimer(9, cacheList)
+	util.LoopTimer(1, cacheList)
 	for {
 		WeekSalesCacheLenght, _ = ini.RedisClient.LLen(WEEK_SALES_GREATER_THAN_ZERO).Result()
 
