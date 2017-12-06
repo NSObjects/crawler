@@ -274,7 +274,7 @@ func saveWishDataIncremental(jsonData model.WishOrginalData, product *model.TPro
 	wishdataIncremental.Created = time.Now()
 	wishdataIncremental.Updated = time.Now()
 	wishdataIncremental.NumBought = jsonData.Data.Contest.NumBought
-	wishdataIncremental.NumCollection = jsonData.Data.Contest.NumEntered
+	//wishdataIncremental.NumCollection = jsonData.Data.Contest.NumEntered
 	wishdataIncremental.RatingCount = int(jsonData.Data.Contest.ProductRating.RatingCount)
 
 	wishdataIncremental.ProductId = util.FNV(jsonData.Data.Contest.ID)
@@ -339,7 +339,7 @@ func configProduct(jsonData model.WishOrginalData, product *model.TProduct) {
 	product.RetailPrice = retailPrice
 	product.Shipping = shipping
 	product.WishId = jsonData.Data.Contest.ID
-	product.NumEntered = jsonData.Data.Contest.NumEntered
+	//product.NumEntered = jsonData.Data.Contest.NumEntered
 	product.NumBought = jsonData.Data.Contest.NumBought
 	product.Updated = time.Now()
 }
