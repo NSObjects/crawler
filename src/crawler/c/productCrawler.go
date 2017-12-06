@@ -98,7 +98,7 @@ func requestTaskData() (taskData TaskData, err error) {
 func crawlerWishData(taskData TaskData) (proudcts []model.WishOrginalData) {
 
 	var wg sync.WaitGroup
-	p := util.New(30)
+	p := util.New(12)
 	for _, wishId := range taskData.WishIds {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		u := taskData.Users[r.Intn(len(taskData.Users))]
@@ -193,11 +193,142 @@ func requestProductData(wishID string, user model.TUser) (wishPorduct model.Wish
 
 		if len(product.Data.Contest.Name) > 0 &&
 			len(product.Data.Contest.ID) > 0 {
+			if n, err := addToCart(product); err == nil {
+				product.Data.Contest.NumBought = n
+			} else {
+				fmt.Println(err)
+			}
+			fmt.Println("num_bought:", product.Data.Contest.NumBought)
 			wishPorduct = product
 		}
 	}
 
 	return wishPorduct, nil
+}
+
+var user model.TUser
+
+func addToCart(product model.WishOrginalData) (numBought int, err error) {
+	// 加入购物车 (POST https://www.wish.com/api/cart/update)
+	if len(user.Baid) <= 0 {
+		user = model.RegistIdWith()
+	}
+
+	params := url.Values{}
+	//params.Set("_riskified_session_token", "E1EEB61A-FFC3-40FA-B1F0-9165E217CB21")
+	params.Set("_app_type", "wish")
+	//params.Set("advertiser_id", "FF22EA82-D474-4F28-9279-264E5F81946C")
+	params.Set("_xsrf", "1")
+	//params.Set("_threat_metrix_session_token", "7625-7334AB75-1D44-4F5E-ACCB-0637B34E736C")
+	params.Set("app_device_id", "d5c712a51c5ef40cc341a5fcda73d5fc5b64de7d")
+	params.Set("app_device_model", "iPhone9,2")
+	params.Set("_client", "iosapp")
+
+	params.Set("_capabilities[]", "2")
+	params.Set("_capabilities[]", "4")
+	params.Set("_capabilities[]", "3")
+	params.Set("_capabilities[]", "6")
+	params.Set("_capabilities[]", "7")
+	params.Set("_capabilities[]", "9")
+	params.Set("_capabilities[]", "11")
+	params.Set("_capabilities[]", "12")
+	params.Set("_capabilities[]", "13")
+	params.Set("_capabilities[]", "15")
+	params.Set("_capabilities[]", "21")
+	params.Set("_capabilities[]", "24")
+	params.Set("_capabilities[]", "25")
+	params.Set("_capabilities[]", "40")
+	params.Set("_capabilities[]", "28")
+	params.Set("_capabilities[]", "32")
+	params.Set("_capabilities[]", "33")
+	params.Set("_capabilities[]", "35")
+	params.Set("_capabilities[]", "39")
+	params.Set("_capabilities[]", "40")
+	params.Set("_capabilities[]", "43")
+	params.Set("_capabilities[]", "46")
+	params.Set("_capabilities[]", "47")
+	params.Set("_capabilities[]", "49")
+	params.Set("_capabilities[]", "51")
+	params.Set("_capabilities[]", "52")
+	params.Set("_capabilities[]", "55")
+	params.Set("_capabilities[]", "64")
+	params.Set("_capabilities[]", "65")
+	params.Set("_capabilities[]", "70")
+	params.Set("_capabilities[]", "72")
+	params.Set("_capabilities[]", "76")
+	params.Set("_capabilities[]", "77")
+
+	params.Set("add_to_cart", "true")
+	params.Set("should_clear_cart", "true")
+
+	for _, v := range product.Data.Contest.CommerceProductInfo.Variations {
+		if len(v.VariationID) > 0 {
+			params.Set("variation_id", v.VariationID)
+			break
+		}
+	}
+
+	params.Set("quantity", "1")
+
+	params.Set("product_id", product.Data.Contest.ID)
+	params.Set("shipping_option_id", "standard")
+	params.Set("_version", "4.1.5")
+	body := bytes.NewBufferString(params.Encode())
+
+	// Create client
+	client := &http.Client{}
+
+	// Create request
+	req, err := http.NewRequest("POST", "https://www.wish.com/api/cart/update", body)
+	cookie := fmt.Sprintf("_xsrf=1; _timezone=8; _appLocale=zh-Hans-CN; sweeper_session=\"%s\"; bsid=%s", user.SweeperSession, user.Baid)
+	req.Header.Add("Cookie", cookie)
+	// Headers
+	//req.Header.Add("Cookie", "sweeper_session=\"2|1:0|10:1512354599|15:sweeper_session|84:MzIyZDNiMjctNGEyMi00ODhkLWI0ODYtN2ExZjQxMWE4MGU4MjAxNy0xMi0wNCAwMjoyOTo1OS4yMTYzODI=|13219a254cb930574dd363c86bbf468e07a77fe270427575d9d42877130359ec\"; bsid=f250b6bcef394904b3a3db14896db65d; _xsrf=1; _appLocale=zh")
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+
+	// Fetch Request
+	resp, err := client.Do(req)
+
+	if err != nil {
+		fmt.Println("Failure : ", err)
+	}
+
+	// Read Response Body
+	respBody, _ := ioutil.ReadAll(resp.Body)
+
+	// Display Results
+
+	if resp.Status == "403 Forbidde" {
+		fmt.Println("response Status : ", resp.Status)
+		user = model.RegistIdWith()
+	}
+
+	var v Cart
+	err = json.Unmarshal(respBody, &v)
+	if err != nil {
+		return numBought, err
+	}
+
+	if v.Code != 0 {
+		return numBought, fmt.Errorf(v.Msg)
+	}
+	if len(v.Data.CartInfo.Items) > 0 {
+		return v.Data.CartInfo.Items[0].NumBought, nil
+	}
+	return
+}
+
+type Cart struct {
+	Msg  string `json:"msg"`
+	Code int    `json:"code"`
+	Data struct {
+		CartInfo struct {
+			Items []struct {
+				VariationID string `json:"variation_id"`
+				NumBought   int    `json:"num_bought"`
+			} `json:"items"`
+		} `json:"cart_info"`
+	} `json:"data"`
 }
 
 func loadProductWith(wishID string, user model.TUser) (p model.WishOrginalData, e error) {
