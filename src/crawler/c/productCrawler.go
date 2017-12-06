@@ -98,7 +98,7 @@ func requestTaskData() (taskData TaskData, err error) {
 func crawlerWishData(taskData TaskData) (proudcts []model.WishOrginalData) {
 
 	var wg sync.WaitGroup
-	p := util.New(12)
+	p := util.New(30)
 	for _, wishId := range taskData.WishIds {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		u := taskData.Users[r.Intn(len(taskData.Users))]
@@ -194,11 +194,12 @@ func requestProductData(wishID string, user model.TUser) (wishPorduct model.Wish
 		if len(product.Data.Contest.Name) > 0 &&
 			len(product.Data.Contest.ID) > 0 {
 			if n, err := addToCart(product); err == nil {
+				fmt.Println(n)
 				product.Data.Contest.NumBought = n
 			} else {
 				fmt.Println(err)
 			}
-			fmt.Println("num_bought:", product.Data.Contest.NumBought)
+
 			wishPorduct = product
 		}
 	}
