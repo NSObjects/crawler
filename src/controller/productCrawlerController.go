@@ -88,7 +88,7 @@ func (this ProductCrawlerController) GetWishId(ctx echo.Context) error {
 
 	var datas []string
 
-	if rc >= 3 && rc < 8 && global.WeekSalesCacheLenght > 0 {
+	if rc >= 2 && global.WeekSalesCacheLenght > 0 {
 		datas = wishIdByWeekSalesGtZero()
 	} else if rc >= 8 && global.SalesGreaterThanZeroCacheLenght > 0 {
 		datas = wishIdBySalesGtZero()
