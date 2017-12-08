@@ -8,6 +8,7 @@
 package main
 
 import (
+	"crawler/src/controller"
 	"crawler/src/global"
 	"crawler/src/ini"
 	"crawler/src/util"
@@ -25,8 +26,8 @@ func main() {
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
-	//ServeBackGround()
-	//controller.Setup()
+	ServeBackGround()
+	controller.Setup()
 	e := echo.New()
 	g := e.Group("/api")
 	router.RegisterRoutes(g)
@@ -34,7 +35,7 @@ func main() {
 }
 
 func init() {
-	//ini.Setup()
+	ini.Setup()
 }
 
 func ServeBackGround() {
