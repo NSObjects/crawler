@@ -56,12 +56,7 @@ func cacheList() {
 	ini.RedisClient.Del(WEEK_SALES_GREATER_THAN_ZERO).Result()
 	start := now.BeginningOfWeek()
 	end := now.EndOfDay()
-	_, err := o.Raw("select DISTINCT product_id "+
-		"from t_incremental "+
-		"where product_id "+
-		"in (select product_id "+
-		"from t_incremental where created>=? and created<=? group by product_id"+
-		" having sum(product_id)>0)", start, end).ValuesFlat(&list)
+	_, err := o.Raw("select DISTINCT product_id from t_incremental where product_id in (select product_id from t_incremental group by product_id having sum(product_id)>0)", start, end).ValuesFlat(&list)
 
 	if err != nil {
 		log.WithFields(logrus.Fields{

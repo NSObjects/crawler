@@ -8,7 +8,6 @@
 package controller
 
 import (
-	"CrawlerMainController/utility"
 	"crawler/src/global"
 	"crawler/src/ini"
 	"crawler/src/model"
@@ -242,7 +241,7 @@ func saveWishDataIncremental(jsonData model.WishOrginalData, product *model.TPro
 
 	//如果这个产品更新时间距离现在超过一天，则不更新增量
 	if time.Now().YearDay()-product.Updated.YearDay() > 1 {
-		//return
+		return
 	}
 
 	wishdataIncremental := model.TIncremental{}
@@ -377,7 +376,9 @@ func nocacheWishId() (datas []string) {
 	var list orm.ParamsList
 	_, err := o.Raw("select wish_id from t_wish_id limit ? offset ?", size, size*page).ValuesFlat(&list)
 	if err != nil {
-		utility.Errorln(4, err)
+		log.WithFields(logrus.Fields{
+			"productCrawlerController.go": "386",
+		}).Error(err)
 	}
 	if len(list) <= 0 {
 		pageChan <- 0

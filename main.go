@@ -8,21 +8,25 @@
 package main
 
 import (
+	"crawler/src/global"
 	"crawler/src/ini"
 	"crawler/src/util"
+	"log"
+	_ "net/http/pprof"
 
-	"crawler/src/global"
-
-	"crawler/src/controller"
 	"crawler/src/router"
+	"net/http"
 	_ "net/http/pprof"
 
 	"github.com/labstack/echo"
 )
 
 func main() {
-	ServeBackGround()
-	controller.Setup()
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+	//ServeBackGround()
+	//controller.Setup()
 	e := echo.New()
 	g := e.Group("/api")
 	router.RegisterRoutes(g)
@@ -30,7 +34,7 @@ func main() {
 }
 
 func init() {
-	ini.Setup()
+	//ini.Setup()
 }
 
 func ServeBackGround() {
